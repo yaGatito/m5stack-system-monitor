@@ -25,9 +25,10 @@ if __name__ == '__main__':
     cpuLoad = psutil.cpu_percent(percpu=True)[0]
     ram = psutil.virtual_memory()
     temps = psutil.sensors_temperatures()
+    temp_gpu = temps["amdgpu"][0]
     temp_cpu = temps["k10temp"][0]
 
-    client.publish(MQTT_TOPIC, 'gpu:{0:3.0f},vram:{1:3.0f},cpu:{2:3.0f},ram:{3:3.0f},temp:{4:3.0f}'.format(gpu.load*100, gpu.memoryUtil*100, cpuLoad * 100, ram.used/GB, temp_cpu.current))
+    client.publish(MQTT_TOPIC, 'gpu:{0:3.0f},vram:{1:3.0f},temp_gpu:{2:3.0f},cpu:{3:3.0f},ram:{4:3.0f},temp_cpu:{5:3.0f}'.format(gpu.load*100, gpu.memoryUtil*100, temp_gpu.current, cpuLoad * 100, ram.used/GB, temp_cpu.current))
 
     time.sleep(DELAY_UPDATE)
 

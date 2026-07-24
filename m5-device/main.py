@@ -7,18 +7,11 @@ from umqtt.simple import MQTTClient
 
 
 # =========================
-# System
-# =========================
-
-DELAY_UPDATE = 0.5
-
-
-# =========================
 # Wi-Fi connection
 # =========================
 
-WIFI_SSID = "HAXE_HEADQUARTER_2G"
-WIFI_PASSWORD = "Cxtn4Bill95"
+WIFI_SSID = "TEST"
+WIFI_PASSWORD = "TEST"
 
 def connect_wifi():
     wlan = network.WLAN(network.STA_IF)
@@ -40,11 +33,6 @@ def connect_wifi():
 # =========================
 
 
-LABELS_SPACING = 80
-
-INITIAL_X = 10
-INITIAL_Y = 20
-
 BACKGROUND_COLOR = 0x222222
 TITLE_TEXT_COLOR = 0xAAAAAA
 VALUE_TEXT_COLOR = 0xFFFFFF
@@ -52,14 +40,40 @@ VALUE_TEXT_COLOR = 0xFFFFFF
 TITLE_FONT = Widgets.FONTS.DejaVu18
 VALUE_FONT = Widgets.FONTS.DejaVu24
 
-WIDGET_OFFSET_X = 80
-WIDGET_OFFSET_Y = 30
+INITIAL_X = 15
+INITIAL_Y = 20
+
+WIDGET_OFFSET_X = 100
+WIDGET_OFFSET_Y = 100
+VALUE_OFFSET_Y = 35
 
 TITLE_TEXT_SIZE = 1.5
 VALUE_TEXT_SIZE = 1.2
 
-COLUMNS = 3
-ROWS = 2
+MAX_COLUMNS = 3
+
+
+titles = ["GPU", "VRAM", "TEMP", "CPU", "RAM", "TEMP"]
+labels = []
+
+def buildWidgets():
+    x_multiplier = 0
+    y_multiplier = 0
+
+    for idx, title in enumerate(titles):
+        if idx != 0 and idx % MAX_COLUMNS == 0:
+            x_multiplier = 0
+            y_multiplier += 1
+
+        x = INITIAL_X + x_multiplier * WIDGET_OFFSET_X
+        y = INITIAL_Y + y_multiplier * WIDGET_OFFSET_Y
+
+        Widgets.Label(title, x, y, TITLE_TEXT_SIZE, TITLE_TEXT_COLOR, BACKGROUND_COLOR, TITLE_FONT)
+
+        labels.append(
+            Widgets.Label("0", x, y + VALUE_OFFSET_Y, VALUE_TEXT_SIZE, VALUE_TEXT_COLOR, BACKGROUND_COLOR, VALUE_FONT))
+
+        x_multiplier += 1
 
 
 # =========================
@@ -79,7 +93,13 @@ def parse_kv(s: str) -> dict:
 def on_message(topic, msg):
     if topic == MQTT_TOPIC.encode('utf-8'):
         dict = parse_kv(msg)
-        update_values(dict["gpu"], dict["vram"], dict["temp"], dict["cpu"], dict["ram"], dict["temp"])
+
+        labels[0].setText(dict["gpu"] + "%")        # GPU
+        labels[1].setText(dict["vram"] + "%")       # VRAM
+        labels[2].setText(dict["temp_gpu"] + "°")   # TEMP GPU
+        labels[3].setText(dict["cpu"] + "%")        # CPU
+        labels[4].setText(dict["ram"] + " G")       # RAM
+        labels[5].setText(dict["temp_cpu"] + "°")   # TEMP CPU
 
 def connect_mqtt():
     print("Connecting to MQTT broker:",MQTT_BROKER)
@@ -100,6 +120,7 @@ def connect_mqtt():
 def setup():
     M5.begin()
 
+    time.sleep(1)
     M5.Display.fillScreen(0x000000)
     M5.Display.setCursor(10,10)
     M5.Display.print("Connecting Wi-Fi...")
@@ -116,129 +137,13 @@ def setup():
     M5.Display.print("MQTT CONNECTED")
 
     Widgets.fillScreen(BACKGROUND_COLOR)
-
-    Widgets.Label(
-        "GPU",
-        20, 20,
-        TITLE_TEXT_SIZE,
-        TITLE_TEXT_COLOR,
-        BACKGROUND_COLOR,
-        TITLE_FONT
-    )
-
-    Widgets.Label(
-        "VRAM",
-        120, 20,
-        TITLE_TEXT_SIZE,
-        TITLE_TEXT_COLOR,
-        BACKGROUND_COLOR,
-        TITLE_FONT
-    )
-
-    Widgets.Label(
-        "TEMP",
-        210, 20,
-        TITLE_TEXT_SIZE,
-        TITLE_TEXT_COLOR,
-        BACKGROUND_COLOR,
-        TITLE_FONT
-    )
-
-    Widgets.Label(
-        "CPU",
-        20, 100,
-        TITLE_TEXT_SIZE,
-        TITLE_TEXT_COLOR,
-        BACKGROUND_COLOR,
-        TITLE_FONT
-    )
-
-    Widgets.Label(
-        "RAM",
-        120, 100,
-        TITLE_TEXT_SIZE,
-        TITLE_TEXT_COLOR,
-        BACKGROUND_COLOR,
-        TITLE_FONT
-    )
-
-    Widgets.Label(
-        "TEMP",
-        210, 100,
-        TITLE_TEXT_SIZE,
-        TITLE_TEXT_COLOR,
-        BACKGROUND_COLOR,
-        TITLE_FONT
-    )
-
-    global labels
-    labels = [
-        Widgets.Label(
-            "0",
-            20, 45,
-            VALUE_TEXT_SIZE,
-            VALUE_TEXT_COLOR,
-            BACKGROUND_COLOR,
-            VALUE_FONT
-        ),
-
-        Widgets.Label(
-            "0",
-            120, 45,
-            VALUE_TEXT_SIZE,
-            VALUE_TEXT_COLOR,
-            BACKGROUND_COLOR,
-            VALUE_FONT
-        ),
-
-        Widgets.Label(
-            "0",
-            210, 45,
-            VALUE_TEXT_SIZE,
-            VALUE_TEXT_COLOR,
-            BACKGROUND_COLOR,
-            VALUE_FONT
-        ),
-
-        Widgets.Label(
-            "0",
-            20, 125,
-            VALUE_TEXT_SIZE,
-            VALUE_TEXT_COLOR,
-            BACKGROUND_COLOR,
-            VALUE_FONT
-        ),
-
-        Widgets.Label(
-            "0",
-            120, 125,
-            VALUE_TEXT_SIZE,
-            VALUE_TEXT_COLOR,
-            BACKGROUND_COLOR,
-            VALUE_FONT
-        ),
-
-        Widgets.Label(
-            "0",
-            210, 125,
-            VALUE_TEXT_SIZE,
-            VALUE_TEXT_COLOR,
-            BACKGROUND_COLOR,
-            VALUE_FONT
-        )
-    ]
-
-def update_values(gpu: str, vram: str, temp1: str, cpu: str, ram: str, temp2: str):
-    labels[0].setText(gpu + "%")    # GPU
-    labels[1].setText(vram + "%")   # VRAM
-    labels[2].setText(temp1 + "°")  # TEMP
-    labels[3].setText(cpu + "%")    # CPU
-    labels[4].setText(ram + " G")   # RAM
-    labels[5].setText(temp2 + "°")  # TEMP
+    buildWidgets()
 
 # =========================
 # Main loop
 # =========================
+
+DELAY_UPDATE = 0.5
 
 def loop():
     M5.update()
