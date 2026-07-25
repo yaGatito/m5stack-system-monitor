@@ -2,24 +2,43 @@ import M5
 import time
 import network
 from M5 import *
+import ujson
 
 from umqtt.simple import MQTTClient
 
 
 # =========================
+# Configuration
+# =========================
+
+class AppConfig:
+    def __init__(self):
+        self.wifi_ssid = "empty"
+        self.wifi_pass = "empty"
+        self.update_rate = 0.5
+
+    def load_from_file(self, filename="./conf.json"):
+        try:
+            with open(filename, "r") as f:
+                data = ujson.load(f)
+                self.__dict__.update(data)
+        except Exception as e:
+            print("Failed to load conf:", e)
+
+# =========================
 # Wi-Fi connection
 # =========================
 
-WIFI_SSID = "TEST"
-WIFI_PASSWORD = "TEST"
+WIFI_SSID = "HAXE_HEADQUARTER_2G"
+WIFI_PASSWORD = "Cxtn4Bill95"
 
-def connect_wifi():
+def connect_wifi(conf: AppConfig):
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
 
     if not wlan.isconnected():
         print("Connecting to Wi-Fi...")
-        wlan.connect(WIFI_SSID,WIFI_PASSWORD)
+        wlan.connect(conf.wifi_ssid, conf.wifi_pass)
 
         while not wlan.isconnected():
             time.sleep(0.5)
@@ -80,10 +99,11 @@ def buildWidgets():
 # MQTT
 # =========================
 
-MQTT_BROKER = "192.168.31.212"
+MQTT_BROKER = "192.168.31.169"
 MQTT_PORT = 1883
 MQTT_CLIENT_ID = b"m5stack-01"
 MQTT_TOPIC = "pc/data"
+MQTT_VERSION = 2
 
 def parse_kv(s: str) -> dict:
     if isinstance(s, bytes):
@@ -94,14 +114,14 @@ def on_message(topic, msg):
     if topic == MQTT_TOPIC.encode('utf-8'):
         dict = parse_kv(msg)
 
-        labels[0].setText(dict["gpu"] + "%")        # GPU
-        labels[1].setText(dict["vram"] + "%")       # VRAM
-        labels[2].setText(dict["temp_gpu"] + "°")   # TEMP GPU
-        labels[3].setText(dict["cpu"] + "%")        # CPU
-        labels[4].setText(dict["ram"] + " G")       # RAM
-        labels[5].setText(dict["temp_cpu"] + "°")   # TEMP CPU
+        labels[0].setText(dict["gpu"])      # GPU
+        labels[1].setText(dict["vram"])     # VRAM
+        labels[2].setText(dict["temp_gpu"]) # TEMP GPU
+        labels[3].setText(dict["cpu"])      # CPU
+        labels[4].setText(dict["ram"])      # RAM
+        labels[5].setText(dict["temp_cpu"]) # TEMP CPU
 
-def connect_mqtt():
+def connect_mqtt(conf: AppConfig):
     print("Connecting to MQTT broker:",MQTT_BROKER)
 
     client = MQTTClient(MQTT_CLIENT_ID,MQTT_BROKER,port=MQTT_PORT)
@@ -119,19 +139,26 @@ def connect_mqtt():
 
 def setup():
     M5.begin()
+    time.sleep(0.5)
 
-    time.sleep(1)
+    M5.Display.fillScreen(0x000000)
+    M5.Display.setCursor(10,10)
+    M5.Display.print("Reading agent-conf.json...")
+    global cfg
+    cfg = AppConfig()
+    cfg.load_from_file()
+
     M5.Display.fillScreen(0x000000)
     M5.Display.setCursor(10,10)
     M5.Display.print("Connecting Wi-Fi...")
-    connect_wifi()
+    connect_wifi(cfg)
 
     M5.Display.fillScreen(0x000000)
     M5.Display.setCursor(10,10)
     M5.Display.print("Connecting MQTT...")
 
     global mqtt
-    mqtt = connect_mqtt()
+    mqtt = connect_mqtt(cfg)
     M5.Display.fillScreen(0x000000)
     M5.Display.setCursor(10,10)
     M5.Display.print("MQTT CONNECTED")
