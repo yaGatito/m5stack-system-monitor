@@ -11,16 +11,19 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/load"
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/sensors"
 )
 
 const (
-	MQTT_DESKTOP_TOPIC   = "pc/data"
-	MQTT_ORANGEPI5_TOPIC = "opi5/data"
-	MQTT_BROKER          = "tcp://192.168.31.169:1883"
-	CPU_SENSOR_KEY       = "k10temp_tctl"
-	UPDATE_DELAY         = time.Millisecond * 500
+	MQTT_DESKTOP_TOPIC       = "pc/data"
+	MQTT_ORANGEPI5_TOPIC     = "opi5/data"
+	MQTT_BROKER              = "tcp://192.168.31.169:1883"
+	DESKTOP_CPU_SENSOR_KEY   = "k10temp_tctl"
+	ORANGEPI5_CPU_SENSOR_KEY = "soc_thermal"
+	UPDATE_DELAY             = time.Millisecond * 500
 )
 
 func init() {
@@ -106,7 +109,10 @@ func getSystemStats(typee DeviceType) (OrangePi5Stats, DesktopStats) {
 		log.Printf("Unable to get temperature: %v", err)
 	}
 	for _, sensor := range sensors {
-		if sensor.SensorKey == CPU_SENSOR_KEY {
+		if typee == DESKTOP_DEVICE_TYPE && sensor.SensorKey == DESKTOP_CPU_SENSOR_KEY {
+			cpuTempCelsius = sensor.Temperature
+		}
+		if typee == ORANGE_PI5_DEVICE_TYPE && sensor.SensorKey == ORANGEPI5_CPU_SENSOR_KEY {
 			cpuTempCelsius = sensor.Temperature
 		}
 	}
@@ -155,6 +161,15 @@ func getSystemStats(typee DeviceType) (OrangePi5Stats, DesktopStats) {
 	}
 
 	if typee == ORANGE_PI5_DEVICE_TYPE {
+		misc, _ := load.Misc()
+		fmt.Println("misc", misc)
+
+		avg, _ := load.Avg()
+		fmt.Println("avg", avg)
+
+		str, _ := disk.Label("sd")
+		fmt.Println("disk", str)
+
 		return OrangePi5Stats{
 			cpuUtilPerc: cpu_perc[0] * 100,
 			ramGb:       float64(ram.Used) / (1024 * 1024 * 1024),
