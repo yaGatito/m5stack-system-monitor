@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"runtime"
 	"sync"
 	"time"
 
@@ -15,13 +16,15 @@ import (
 )
 
 const (
-	MQTT_TOPIC     = "pc/data"
-	MQTT_BROKER    = "tcp://192.168.31.169:1883"
-	CPU_SENSOR_KEY = "k10temp_tctl"
-	UPDATE_DELAY   = time.Millisecond * 500
+	MQTT_DESKTOP_TOPIC   = "pc/data"
+	MQTT_ORANGEPI5_TOPIC = "opi5/data"
+	MQTT_BROKER          = "tcp://192.168.31.169:1883"
+	CPU_SENSOR_KEY       = "k10temp_tctl"
+	UPDATE_DELAY         = time.Millisecond * 500
 )
 
 func init() {
+	log.Println("system:" + runtime.GOOS)
 	sensors, _ := sensors.TemperaturesWithContext(context.Background())
 	sync.OnceFunc(func() {
 		for _, sensor := range sensors {
@@ -39,25 +42,54 @@ func main() {
 	fmt.Println("Connected")
 
 	for {
-		stats := getSystemStats()
-		_ = mqtt.Publish(MQTT_TOPIC, 0, true,
-			fmt.Sprintf("gpu:%d%%,vram:%.1fG,temp_gpu:%d°,cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°",
-				stats.gpuUtilPerc, stats.vramGb, stats.tempGpuCels, stats.cpuUtilPerc, stats.ramGb, stats.tempCpuCels))
+		// pc
+		opistats, _ := getSystemStats(ORANGE_PI5_DEVICE_TYPE)
+		_ = mqtt.Publish(MQTT_ORANGEPI5_TOPIC, 0, true,
+			fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,pwr:%d%%,ssd:%d%%,zram:%.0f,",
+				opistats.cpuUtilPerc, opistats.ramGb, opistats.tempCpuCels, opistats.power, opistats.ssdPerc, opistats.zram))
+
+		// opistats, pcstats := getSystemStats(DESKTOP_DEVICE_TYPE)
+		// _ = mqtt.Publish(MQTT_DESKTOP_TOPIC, 0, true,
+		// 	fmt.Sprintf("gpu:%d%%,vram:%.1fG,temp_gpu:%d°,cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°",
+		// 		pcstats.gpuUtilPerc, pcstats.vramGb, pcstats.tempGpuCels, pcstats.cpuUtilPerc, pcstats.ramGb, pcstats.tempCpuCels))
+		// opistats
 
 		time.Sleep(UPDATE_DELAY)
 	}
 }
 
-type Stats struct {
-	gpuUtilPerc uint32
+type OrangePi5Stats struct {
 	cpuUtilPerc float64
-	vramGb      float64
 	ramGb       float64
-	tempGpuCels uint32
 	tempCpuCels float64
+
+	// optional
+	power   uint32
+	zram    float64
+	ssdPerc uint32
 }
 
-func getSystemStats() Stats {
+type DesktopStats struct {
+	cpuUtilPerc float64
+	ramGb       float64
+	tempCpuCels float64
+
+	// optional
+	gpuUtilPerc uint32
+	vramGb      float64
+	tempGpuCels uint32
+}
+
+type DeviceType byte
+
+const (
+	ORANGE_PI5_DEVICE_TYPE DeviceType = 0
+	DESKTOP_DEVICE_TYPE    DeviceType = 1
+)
+
+var Retards = []string{"", ""}
+
+func getSystemStats(typee DeviceType) (OrangePi5Stats, DesktopStats) {
 	cpu_perc, err := cpu.Percent(0, false)
 	if err != nil {
 		log.Printf("Unable to get temperature: %v", err)
@@ -79,44 +111,59 @@ func getSystemStats() Stats {
 		}
 	}
 
-	ret := nvml.Init()
-	if ret != nvml.SUCCESS {
-		log.Printf("Unable to initialize NVML: %v", nvml.ErrorString(ret))
-	}
-	defer func() {
-		ret := nvml.Shutdown()
+	if typee == DESKTOP_DEVICE_TYPE {
+		ret := nvml.Init()
 		if ret != nvml.SUCCESS {
-			log.Printf("Unable to shutdown NVML: %v", nvml.ErrorString(ret))
+			log.Printf("Unable to initialize NVML: %v", nvml.ErrorString(ret))
 		}
-	}()
+		defer func() {
+			ret := nvml.Shutdown()
+			if ret != nvml.SUCCESS {
+				log.Printf("Unable to shutdown NVML: %v", nvml.ErrorString(ret))
+			}
+		}()
 
-	device, err := nvml.DeviceGetHandleByIndex(0)
-	if ret != nvml.SUCCESS {
-		log.Printf("Unable to get device: %v", err)
+		device, err := nvml.DeviceGetHandleByIndex(0)
+		if ret != nvml.SUCCESS {
+			log.Printf("Unable to get device: %v", err)
+		}
+
+		gpuUtilization, ret := nvml.DeviceGetUtilizationRates(device)
+		if ret != nvml.SUCCESS {
+			log.Printf("Unable to get gpuUtilization: %v", err)
+		}
+
+		vram, ret := device.GetMemoryInfo()
+		if ret != nvml.SUCCESS {
+			log.Printf("Unable to get vram: %v", err)
+		}
+
+		gpuTempCelsius, ret := nvml.DeviceGetTemperature(device, nvml.TEMPERATURE_GPU)
+		if ret != nvml.SUCCESS {
+			log.Printf("Unable to get gpuTempCelsius: %v", err)
+		}
+
+		return OrangePi5Stats{}, DesktopStats{
+			cpuUtilPerc: cpu_perc[0] * 100,
+			ramGb:       float64(ram.Used) / (1024 * 1024 * 1024),
+			tempCpuCels: cpuTempCelsius,
+
+			gpuUtilPerc: gpuUtilization.Gpu,
+			vramGb:      float64(vram.Used) / (1024 * 1024 * 1024),
+			tempGpuCels: gpuTempCelsius,
+		}
 	}
 
-	gpuUtilization, _ := nvml.DeviceGetUtilizationRates(device)
-	if ret != nvml.SUCCESS {
-		log.Printf("Unable to get gpuUtilization: %v", err)
+	if typee == ORANGE_PI5_DEVICE_TYPE {
+		return OrangePi5Stats{
+			cpuUtilPerc: cpu_perc[0] * 100,
+			ramGb:       float64(ram.Used) / (1024 * 1024 * 1024),
+			tempCpuCels: cpuTempCelsius,
+			power:       10,
+			zram:        20,
+			ssdPerc:     40,
+		}, DesktopStats{}
 	}
 
-	vram, _ := device.GetMemoryInfo()
-	if ret != nvml.SUCCESS {
-		log.Printf("Unable to get vram: %v", err)
-	}
-
-	gpuTempCelsius, _ := nvml.DeviceGetTemperature(device, nvml.TEMPERATURE_GPU)
-	if ret != nvml.SUCCESS {
-		log.Printf("Unable to get gpuTempCelsius: %v", err)
-	}
-
-	return Stats{
-		gpuUtilPerc: gpuUtilization.Gpu,
-		vramGb:      float64(vram.Used) / (1024 * 1024 * 1024),
-		tempGpuCels: gpuTempCelsius,
-
-		cpuUtilPerc: cpu_perc[0] * 100,
-		ramGb:       float64(ram.Used) / (1024 * 1024 * 1024),
-		tempCpuCels: cpuTempCelsius, // dont work
-	}
+	return OrangePi5Stats{}, DesktopStats{}
 }
