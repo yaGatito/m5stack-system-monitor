@@ -6,7 +6,6 @@ from hardware import sdcard
 import os
 from M5 import *
 import ujson
-import vfs
 
 
 from umqtt.simple import MQTTClient
@@ -40,7 +39,6 @@ class AppConfig:
             os.mount(sd, "/sd")
             with open(filename, "r") as f:
                 content = f.read()
-                print("f.read(): ", content)
                 data = ujson.loads(content)
                 self.wifi_ssid = data.get("wifi_ssid")
                 self.wifi_pass = data.get("wifi_pass")
@@ -78,14 +76,14 @@ def connect_wifi(conf: AppConfig):
 # =========================
 
 
+HIGHLIGHTED_NAV_TEXT_COLOR = 0x00ff55
+HIGHLIGHTED_NAV_BACKGROUND_COLOR = 0x00AA55
 BACKGROUND_COLOR = 0x222222
 NAV_BACKGROUND_COLOR = 0x00AAAA
 NAV_TEXT_COLOR = 0x00ffff
 TITLE_TEXT_COLOR = 0xAAAAAA
 VALUE_TEXT_COLOR = 0xFFFFFF
 
-TITLE_FONT = Widgets.FONTS.DejaVu18
-VALUE_FONT = Widgets.FONTS.DejaVu24
 
 WIDGETS_INITIAL_X = 15
 WIDGETS_INITIAL_Y = 20
@@ -104,8 +102,36 @@ MAX_COLUMNS = 3
 
 pcTitles = ["CPU", "RAM", "TEMP", "GPU", "VRAM", "TEMP"]
 opi5Titles = ["CPU", "RAM", "TEMP", "DOWN", "SSD", "ZRAM"]
+buttons = ["opi5", "tst", "pc"]
 
 currentLabels = []
+navbar  = []
+
+def dehighlight(exceptOne: int):
+    for idx, btn in enumerate(buttons):
+      if idx != exceptOne:
+        navbar[idx].setColor(NAV_TEXT_COLOR)
+        navbar[idx].setText(btn)
+
+def highligh(idx: int):
+    navbar[idx].setColor(HIGHLIGHTED_NAV_TEXT_COLOR)
+    navbar[idx].setText(buttons[idx]+"<")
+
+def button_a_handler(state):
+    highligh(0)
+    dehighlight(0)
+    mqtt.subscribe(cfg.orangepi5_topic)
+    mqtt.unsubscribe(cfg.desktop_topic)
+
+def button_b_handler(state):
+    highligh(1)
+    dehighlight(1)
+
+def button_c_handler(state):
+    highligh(2)
+    dehighlight(2)
+    mqtt.unsubscribe(cfg.orangepi5_topic)
+    mqtt.subscribe(cfg.desktop_topic)
 
 def buildWidgets(titles: list[str]):
     x_multiplier = 0
@@ -119,15 +145,16 @@ def buildWidgets(titles: list[str]):
         x = WIDGETS_INITIAL_X + x_multiplier * WIDGET_OFFSET_X
         y = WIDGETS_INITIAL_Y + y_multiplier * WIDGET_OFFSET_Y
 
-        Widgets.Label(title, x, y, TITLE_TEXT_SIZE, TITLE_TEXT_COLOR, BACKGROUND_COLOR, TITLE_FONT)
+        Widgets.Label(title, x, y, TITLE_TEXT_SIZE, TITLE_TEXT_COLOR, BACKGROUND_COLOR, Widgets.FONTS.DejaVu18)
 
         currentLabels.append(
-            Widgets.Label("0", x, y + VALUE_OFFSET_Y, VALUE_TEXT_SIZE, VALUE_TEXT_COLOR, BACKGROUND_COLOR, VALUE_FONT))
+            Widgets.Label("0", x, y + VALUE_OFFSET_Y, VALUE_TEXT_SIZE, VALUE_TEXT_COLOR, BACKGROUND_COLOR, Widgets.FONTS.DejaVu24))
 
         x_multiplier += 1
 
-    navbar.append(Widgets.Label("OPI5", 50, 200, TITLE_TEXT_SIZE, NAV_TEXT_COLOR, NAV_BACKGROUND_COLOR, VALUE_FONT))
-    navbar.append(Widgets.Label("PC", 200, 200, TITLE_TEXT_SIZE, NAV_TEXT_COLOR, NAV_BACKGROUND_COLOR, VALUE_FONT))
+    navbar.append(Widgets.Label(buttons[0], 30, 200, TITLE_TEXT_SIZE, NAV_TEXT_COLOR, NAV_BACKGROUND_COLOR, Widgets.FONTS.DejaVu24))
+    navbar.append(Widgets.Label(buttons[1], 135, 200, TITLE_TEXT_SIZE, NAV_TEXT_COLOR, NAV_BACKGROUND_COLOR, Widgets.FONTS.DejaVu24))
+    navbar.append(Widgets.Label(buttons[2], 233, 200, TITLE_TEXT_SIZE, NAV_TEXT_COLOR, NAV_BACKGROUND_COLOR, Widgets.FONTS.DejaVu24))
 
 
 # =========================
@@ -187,7 +214,6 @@ def connect_mqtt(conf: AppConfig):
 # CS   = GPIO4
 # freq = 1 MHz
 
-navbar  = []
 
 def setup():
     M5.begin()
@@ -225,6 +251,11 @@ def setup():
     Widgets.fillScreen(BACKGROUND_COLOR)
     current_mode = "opi5"
     buildWidgets(opi5Titles)
+    highligh(0)
+
+    BtnA.setCallback(type=BtnA.CB_TYPE.WAS_CLICKED,cb=button_a_handler)
+    BtnB.setCallback(type=BtnB.CB_TYPE.WAS_CLICKED,cb=button_b_handler)
+    BtnC.setCallback(type=BtnC.CB_TYPE.WAS_CLICKED,cb=button_c_handler)
 
 
 # =========================
@@ -234,7 +265,7 @@ def setup():
 def loop():
     M5.update()
     mqtt.check_msg()
-    time.sleep(cfg.update_rate)
+    time.sleep(0.1)
 
 # =========================
 # Start
