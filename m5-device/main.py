@@ -102,7 +102,8 @@ def buildWidgets():
 MQTT_BROKER = "192.168.31.169"
 MQTT_PORT = 1883
 MQTT_CLIENT_ID = b"m5stack-01"
-MQTT_TOPIC = "pc/data"
+MQTT_PC_TOPIC = "pc/data"
+MQTT_OPI_TOPIC = "opi5/data"
 MQTT_VERSION = 2
 
 def parse_kv(s: str) -> dict:
@@ -111,15 +112,25 @@ def parse_kv(s: str) -> dict:
     return dict(pair.split(":", 1) for pair in s.split(","))
 
 def on_message(topic, msg):
-    if topic == MQTT_TOPIC.encode('utf-8'):
+    if topic == MQTT_PC_TOPIC.encode('utf-8'):
         dict = parse_kv(msg)
+        labels[0].setText(dict["cpu"])      # CPU
+        labels[1].setText(dict["ram"])      # RAM
+        labels[2].setText(dict["temp_cpu"]) # TEMP CPU
 
-        labels[0].setText(dict["gpu"])      # GPU
-        labels[1].setText(dict["vram"])     # VRAM
-        labels[2].setText(dict["temp_gpu"]) # TEMP GPU
-        labels[3].setText(dict["cpu"])      # CPU
-        labels[4].setText(dict["ram"])      # RAM
-        labels[5].setText(dict["temp_cpu"]) # TEMP CPU
+        labels[3].setText(dict["gpu"])      # GPU
+        labels[4].setText(dict["vram"])     # VRAM
+        labels[5].setText(dict["temp_gpu"]) # TEMP GPU
+
+    if topic == MQTT_OPI_TOPIC.encode('utf-8'):
+        dict = parse_kv(msg)
+        labels[0].setText(dict["cpu"])      # CPU
+        labels[1].setText(dict["ram"])      # RAM
+        labels[2].setText(dict["temp_cpu"]) # TEMP CPU
+
+        labels[3].setText(dict["pwr"])      # GPU
+        labels[4].setText(dict["ssd"])     # VRAM
+        labels[5].setText(dict["zram"]) # TEMP GPU
 
 def connect_mqtt(conf: AppConfig):
     print("Connecting to MQTT broker:",MQTT_BROKER)
@@ -127,7 +138,7 @@ def connect_mqtt(conf: AppConfig):
     client = MQTTClient(MQTT_CLIENT_ID,MQTT_BROKER,port=MQTT_PORT)
     client.set_callback(on_message)
     client.connect()
-    client.subscribe(MQTT_TOPIC)
+    client.subscribe(MQTT_OPI_TOPIC)
     print("MQTT connected")
 
     return client

@@ -45,7 +45,7 @@ func main() {
 		// pc
 		opistats, _ := getSystemStats(ORANGE_PI5_DEVICE_TYPE)
 		_ = mqtt.Publish(MQTT_ORANGEPI5_TOPIC, 0, true,
-			fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,pwr:%d%%,ssd:%d%%,zram:%.0f,",
+			fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,pwr:%d%%,ssd:%d%%,zram:%.0f",
 				opistats.cpuUtilPerc, opistats.ramGb, opistats.tempCpuCels, opistats.power, opistats.ssdPerc, opistats.zram))
 
 		// opistats, pcstats := getSystemStats(DESKTOP_DEVICE_TYPE)
