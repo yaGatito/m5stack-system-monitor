@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -19,6 +20,15 @@ const (
 	CPU_SENSOR_KEY = "k10temp_tctl"
 	UPDATE_DELAY   = time.Millisecond * 500
 )
+
+func init() {
+	sensors, _ := sensors.TemperaturesWithContext(context.Background())
+	sync.OnceFunc(func() {
+		for _, sensor := range sensors {
+			log.Println(sensor)
+		}
+	})()
+}
 
 func main() {
 	opts := mqtt.NewClientOptions()
@@ -48,12 +58,21 @@ type Stats struct {
 }
 
 func getSystemStats() Stats {
-	cpu_perc, _ := cpu.Percent(0, false)
-	ram, _ := mem.VirtualMemory()
+	cpu_perc, err := cpu.Percent(0, false)
+	if err != nil {
+		log.Printf("Unable to get temperature: %v", err)
+	}
 
-	// TODO: dump all sensors
-	sensors, _ := sensors.TemperaturesWithContext(context.Background())
+	ram, err := mem.VirtualMemory()
+	if err != nil {
+		log.Printf("Unable to get temperature: %v", err)
+	}
+
 	var cpuTempCelsius float64
+	sensors, err := sensors.TemperaturesWithContext(context.Background())
+	if err != nil {
+		log.Printf("Unable to get temperature: %v", err)
+	}
 	for _, sensor := range sensors {
 		if sensor.SensorKey == CPU_SENSOR_KEY {
 			cpuTempCelsius = sensor.Temperature
@@ -62,19 +81,34 @@ func getSystemStats() Stats {
 
 	ret := nvml.Init()
 	if ret != nvml.SUCCESS {
-		log.Fatalf("Unable to initialize NVML: %v", nvml.ErrorString(ret))
+		log.Printf("Unable to initialize NVML: %v", nvml.ErrorString(ret))
 	}
 	defer func() {
 		ret := nvml.Shutdown()
 		if ret != nvml.SUCCESS {
-			log.Fatalf("Unable to shutdown NVML: %v", nvml.ErrorString(ret))
+			log.Printf("Unable to shutdown NVML: %v", nvml.ErrorString(ret))
 		}
 	}()
 
-	device, _ := nvml.DeviceGetHandleByIndex(0)
+	device, err := nvml.DeviceGetHandleByIndex(0)
+	if ret != nvml.SUCCESS {
+		log.Printf("Unable to get device: %v", err)
+	}
+
 	gpuUtilization, _ := nvml.DeviceGetUtilizationRates(device)
+	if ret != nvml.SUCCESS {
+		log.Printf("Unable to get gpuUtilization: %v", err)
+	}
+
 	vram, _ := device.GetMemoryInfo()
+	if ret != nvml.SUCCESS {
+		log.Printf("Unable to get vram: %v", err)
+	}
+
 	gpuTempCelsius, _ := nvml.DeviceGetTemperature(device, nvml.TEMPERATURE_GPU)
+	if ret != nvml.SUCCESS {
+		log.Printf("Unable to get gpuTempCelsius: %v", err)
+	}
 
 	return Stats{
 		gpuUtilPerc: gpuUtilization.Gpu,
