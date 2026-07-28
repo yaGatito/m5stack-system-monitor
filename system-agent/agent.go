@@ -12,8 +12,8 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
-	"github.com/shirou/gopsutil/v4/load"
 	"github.com/shirou/gopsutil/v4/mem"
+	"github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/sensors"
 )
 
@@ -48,8 +48,8 @@ func main() {
 		// pc
 		opistats, _ := getSystemStats(ORANGE_PI5_DEVICE_TYPE)
 		_ = mqtt.Publish(MQTT_ORANGEPI5_TOPIC, 0, true,
-			fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,pwr:%d%%,ssd:%d%%,zram:%.0f",
-				opistats.cpuUtilPerc, opistats.ramGb, opistats.tempCpuCels, opistats.power, opistats.ssdPerc, opistats.zram))
+			fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,net_spd:%.1fM,ssd:%.1fG,zram:%.1fG",
+				opistats.cpuUtilPerc, opistats.ramGb, opistats.tempCpuCels, opistats.netSpd, opistats.ssdPerc, opistats.zram))
 
 		// opistats, pcstats := getSystemStats(DESKTOP_DEVICE_TYPE)
 		// _ = mqtt.Publish(MQTT_DESKTOP_TOPIC, 0, true,
@@ -67,9 +67,9 @@ type OrangePi5Stats struct {
 	tempCpuCels float64
 
 	// optional
-	power   uint32
+	netSpd  float64
 	zram    float64
-	ssdPerc uint32
+	ssdPerc float64
 }
 
 type DesktopStats struct {
@@ -89,8 +89,6 @@ const (
 	ORANGE_PI5_DEVICE_TYPE DeviceType = 0
 	DESKTOP_DEVICE_TYPE    DeviceType = 1
 )
-
-var Retards = []string{"", ""}
 
 func getSystemStats(typee DeviceType) (OrangePi5Stats, DesktopStats) {
 	cpu_perc, err := cpu.Percent(0, false)
@@ -161,22 +159,21 @@ func getSystemStats(typee DeviceType) (OrangePi5Stats, DesktopStats) {
 	}
 
 	if typee == ORANGE_PI5_DEVICE_TYPE {
-		misc, _ := load.Misc()
-		fmt.Println("misc", misc)
 
-		avg, _ := load.Avg()
-		fmt.Println("avg", avg)
+		st, _ := disk.Usage("/")
 
-		str, _ := disk.Label("sd")
-		fmt.Println("disk", str)
+		netinf, _ := net.IOCounters(false)
+
+		swp, _ := mem.SwapMemory()
 
 		return OrangePi5Stats{
 			cpuUtilPerc: cpu_perc[0] * 100,
 			ramGb:       float64(ram.Used) / (1024 * 1024 * 1024),
 			tempCpuCels: cpuTempCelsius,
-			power:       10,
-			zram:        20,
-			ssdPerc:     40,
+
+			netSpd:  float64(netinf[0].BytesRecv) / (1024 * 1024),
+			zram:    float64(swp.Used) / (1024 * 1024 * 1024),
+			ssdPerc: float64(st.Used) / (1024 * 1024 * 1024),
 		}, DesktopStats{}
 	}
 

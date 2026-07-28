@@ -1,8 +1,13 @@
 import M5
 import time
 import network
+import machine
+from hardware import sdcard
+import os
 from M5 import *
 import ujson
+import vfs
+
 
 from umqtt.simple import MQTTClient
 
@@ -16,21 +21,42 @@ class AppConfig:
         self.wifi_ssid = "empty"
         self.wifi_pass = "empty"
         self.update_rate = 0.5
+        self.mqtt_broker_host="192.168.31.169",
+        self.mqtt_broker_port="1883",
+        self.desktop_topic="pc/data",
+        self.orangepi5_topic="opi5/data"
 
-    def load_from_file(self, filename="./conf.json"):
+    def load_from_file(self, filename):
         try:
+            sd = machine.SDCard(
+                slot=2,
+                sck=machine.Pin(18),
+                miso=machine.Pin(19),
+                mosi=machine.Pin(23),
+                cs=machine.Pin(4),
+                freq=1_000_000,
+            )
+
+            os.mount(sd, "/sd")
             with open(filename, "r") as f:
-                data = ujson.load(f)
-                self.__dict__.update(data)
+                content = f.read()
+                print("f.read(): ", content)
+                data = ujson.loads(content)
+                self.wifi_ssid = data.get("wifi_ssid")
+                self.wifi_pass = data.get("wifi_pass")
+                self.update_rate = data.get("update_rate")
+                self.mqtt_broker_host = data.get("mqtt_broker_host")
+                self.mqtt_broker_port = data.get("mqtt_broker_port")
+                self.desktop_topic = data.get("desktop_topic")
+                self.orangepi5_topic = data.get("orangepi5_topic")
+
         except Exception as e:
             print("Failed to load conf:", e)
+
 
 # =========================
 # Wi-Fi connection
 # =========================
-
-WIFI_SSID = "HAXE_HEADQUARTER_2G"
-WIFI_PASSWORD = "Cxtn4Bill95"
 
 def connect_wifi(conf: AppConfig):
     wlan = network.WLAN(network.STA_IF)
@@ -43,7 +69,7 @@ def connect_wifi(conf: AppConfig):
         while not wlan.isconnected():
             time.sleep(0.5)
 
-    print("Wi-Fi connected")
+    print("Wi-Fi connected to ",conf.wifi_ssid)
     print("Device IP address:",wlan.ifconfig()[0])
 
 
@@ -53,14 +79,18 @@ def connect_wifi(conf: AppConfig):
 
 
 BACKGROUND_COLOR = 0x222222
+NAV_BACKGROUND_COLOR = 0x00AAAA
+NAV_TEXT_COLOR = 0x00ffff
 TITLE_TEXT_COLOR = 0xAAAAAA
 VALUE_TEXT_COLOR = 0xFFFFFF
 
 TITLE_FONT = Widgets.FONTS.DejaVu18
 VALUE_FONT = Widgets.FONTS.DejaVu24
 
-INITIAL_X = 15
-INITIAL_Y = 20
+WIDGETS_INITIAL_X = 15
+WIDGETS_INITIAL_Y = 20
+NAVBAR_INITIAL_X = 30
+NAVBAR_INITIAL_Y = 200
 
 WIDGET_OFFSET_X = 100
 WIDGET_OFFSET_Y = 100
@@ -72,10 +102,12 @@ VALUE_TEXT_SIZE = 1.2
 MAX_COLUMNS = 3
 
 
-titles = ["GPU", "VRAM", "TEMP", "CPU", "RAM", "TEMP"]
-labels = []
+pcTitles = ["CPU", "RAM", "TEMP", "GPU", "VRAM", "TEMP"]
+opi5Titles = ["CPU", "RAM", "TEMP", "DOWN", "SSD", "ZRAM"]
 
-def buildWidgets():
+currentLabels = []
+
+def buildWidgets(titles: list[str]):
     x_multiplier = 0
     y_multiplier = 0
 
@@ -84,27 +116,27 @@ def buildWidgets():
             x_multiplier = 0
             y_multiplier += 1
 
-        x = INITIAL_X + x_multiplier * WIDGET_OFFSET_X
-        y = INITIAL_Y + y_multiplier * WIDGET_OFFSET_Y
+        x = WIDGETS_INITIAL_X + x_multiplier * WIDGET_OFFSET_X
+        y = WIDGETS_INITIAL_Y + y_multiplier * WIDGET_OFFSET_Y
 
         Widgets.Label(title, x, y, TITLE_TEXT_SIZE, TITLE_TEXT_COLOR, BACKGROUND_COLOR, TITLE_FONT)
 
-        labels.append(
+        currentLabels.append(
             Widgets.Label("0", x, y + VALUE_OFFSET_Y, VALUE_TEXT_SIZE, VALUE_TEXT_COLOR, BACKGROUND_COLOR, VALUE_FONT))
 
         x_multiplier += 1
+
+    navbar.append(Widgets.Label("OPI5", 50, 200, TITLE_TEXT_SIZE, NAV_TEXT_COLOR, NAV_BACKGROUND_COLOR, VALUE_FONT))
+    navbar.append(Widgets.Label("PC", 200, 200, TITLE_TEXT_SIZE, NAV_TEXT_COLOR, NAV_BACKGROUND_COLOR, VALUE_FONT))
 
 
 # =========================
 # MQTT
 # =========================
 
-MQTT_BROKER = "192.168.31.169"
-MQTT_PORT = 1883
 MQTT_CLIENT_ID = b"m5stack-01"
 MQTT_PC_TOPIC = "pc/data"
 MQTT_OPI_TOPIC = "opi5/data"
-MQTT_VERSION = 2
 
 def parse_kv(s: str) -> dict:
     if isinstance(s, bytes):
@@ -114,31 +146,31 @@ def parse_kv(s: str) -> dict:
 def on_message(topic, msg):
     if topic == MQTT_PC_TOPIC.encode('utf-8'):
         dict = parse_kv(msg)
-        labels[0].setText(dict["cpu"])      # CPU
-        labels[1].setText(dict["ram"])      # RAM
-        labels[2].setText(dict["temp_cpu"]) # TEMP CPU
+        currentLabels[0].setText(dict["cpu"])      # CPU
+        currentLabels[1].setText(dict["ram"])      # RAM
+        currentLabels[2].setText(dict["temp_cpu"]) # TEMP CPU
 
-        labels[3].setText(dict["gpu"])      # GPU
-        labels[4].setText(dict["vram"])     # VRAM
-        labels[5].setText(dict["temp_gpu"]) # TEMP GPU
+        currentLabels[3].setText(dict["gpu"])      # GPU
+        currentLabels[4].setText(dict["vram"])     # VRAM
+        currentLabels[5].setText(dict["temp_gpu"]) # TEMP GPU
 
     if topic == MQTT_OPI_TOPIC.encode('utf-8'):
         dict = parse_kv(msg)
-        labels[0].setText(dict["cpu"])      # CPU
-        labels[1].setText(dict["ram"])      # RAM
-        labels[2].setText(dict["temp_cpu"]) # TEMP CPU
+        currentLabels[0].setText(dict["cpu"])      # CPU
+        currentLabels[1].setText(dict["ram"])      # RAM
+        currentLabels[2].setText(dict["temp_cpu"]) # TEMP CPU
 
-        labels[3].setText(dict["pwr"])      # GPU
-        labels[4].setText(dict["ssd"])     # VRAM
-        labels[5].setText(dict["zram"]) # TEMP GPU
+        currentLabels[3].setText(dict["net_spd"])      # GPU
+        currentLabels[4].setText(dict["ssd"])     # VRAM
+        currentLabels[5].setText(dict["zram"]) # TEMP GPU
 
 def connect_mqtt(conf: AppConfig):
-    print("Connecting to MQTT broker:",MQTT_BROKER)
+    print("SSID:", conf.wifi_ssid)
 
-    client = MQTTClient(MQTT_CLIENT_ID,MQTT_BROKER,port=MQTT_PORT)
+    client = MQTTClient(MQTT_CLIENT_ID, conf.mqtt_broker_host, port=conf.mqtt_broker_port)
     client.set_callback(on_message)
     client.connect()
-    client.subscribe(MQTT_OPI_TOPIC)
+    client.subscribe(conf.orangepi5_topic)
     print("MQTT connected")
 
     return client
@@ -147,6 +179,15 @@ def connect_mqtt(conf: AppConfig):
 # =========================
 # Setup
 # =========================
+
+# slot = 2
+# SCK  = GPIO18
+# MISO = GPIO19
+# MOSI = GPIO23
+# CS   = GPIO4
+# freq = 1 MHz
+
+navbar  = []
 
 def setup():
     M5.begin()
@@ -157,12 +198,19 @@ def setup():
     M5.Display.print("Reading agent-conf.json...")
     global cfg
     cfg = AppConfig()
-    cfg.load_from_file()
+    cfg.load_from_file("/sd/conf.json")
+
+    print("SSID:", cfg.wifi_ssid)
+    print("MQTT host:", cfg.mqtt_broker_host)
+    print("MQTT port:", cfg.mqtt_broker_port)
 
     M5.Display.fillScreen(0x000000)
     M5.Display.setCursor(10,10)
     M5.Display.print("Connecting Wi-Fi...")
+
+    print("before connect wifi")
     connect_wifi(cfg)
+    print("after connect wifi")
 
     M5.Display.fillScreen(0x000000)
     M5.Display.setCursor(10,10)
@@ -175,18 +223,18 @@ def setup():
     M5.Display.print("MQTT CONNECTED")
 
     Widgets.fillScreen(BACKGROUND_COLOR)
-    buildWidgets()
+    current_mode = "opi5"
+    buildWidgets(opi5Titles)
+
 
 # =========================
 # Main loop
 # =========================
 
-DELAY_UPDATE = 0.5
-
 def loop():
     M5.update()
     mqtt.check_msg()
-    time.sleep(DELAY_UPDATE)
+    time.sleep(cfg.update_rate)
 
 # =========================
 # Start

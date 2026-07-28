@@ -1,5 +1,9 @@
 {
   "wifi_ssid":"TEST",
   "wifi_pass":"TEST",
-  "update_rate":0.5
+  "update_rate":0.5,
+  "mqtt_broker_host":"192.168.31.169",
+  "mqtt_broker_port":"1883",
+  "desktop_topic":"pc/data",
+  "orangepi5_topic":"opi5/data"
 }
