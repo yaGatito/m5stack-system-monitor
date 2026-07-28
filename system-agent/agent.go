@@ -54,6 +54,8 @@ func main() {
 			_ = mqtt.Publish(MQTT_ORANGEPI5_TOPIC, 0, true,
 				fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,net_spd:%.1fM,ssd:%.1fG,zram:%.1fG",
 					opistats.cpuUtilPerc, opistats.ramGb, opistats.tempCpuCels, opistats.netSpd, opistats.ssdPerc, opistats.zram))
+
+			time.Sleep(UPDATE_DELAY)
 		}
 	}
 
@@ -63,10 +65,11 @@ func main() {
 			_ = mqtt.Publish(MQTT_DESKTOP_TOPIC, 0, true,
 				fmt.Sprintf("gpu:%d%%,vram:%.1fG,temp_gpu:%d°,cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°",
 					pcstats.gpuUtilPerc, pcstats.vramGb, pcstats.tempGpuCels, pcstats.cpuUtilPerc, pcstats.ramGb, pcstats.tempCpuCels))
+
+			time.Sleep(UPDATE_DELAY)
 		}
 	}
 
-	time.Sleep(UPDATE_DELAY)
 }
 
 type OrangePi5Stats struct {
