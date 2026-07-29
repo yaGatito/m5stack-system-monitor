@@ -2,7 +2,6 @@ import M5
 import time
 import network
 import machine
-from hardware import sdcard
 import os
 from M5 import *
 import ujson
@@ -78,8 +77,9 @@ def connect_wifi(conf: AppConfig):
 
 HIGHLIGHTED_NAV_TEXT_COLOR = 0xFFFFFF
 BACKGROUND_COLOR = 0x222222
-NAV_BACKGROUND_COLOR = 0x00AAAA
-NAV_TEXT_COLOR = 0x00ffff
+# NAV_BACKGROUND_COLOR = 0x00AAAA
+NAV_BACKGROUND_COLOR = 0x111111
+NAV_TEXT_COLOR = 0x666666
 TITLE_TEXT_COLOR = 0xAAAAAA
 VALUE_TEXT_COLOR = 0xFFFFFF
 
@@ -107,31 +107,31 @@ buttons = ["opi5", "tst", "pc"]
 valueLabels = []
 navbar  = []
 
-def dehighlight(exceptOne: int):
-    for idx, btn in enumerate(buttons):
-      if idx != exceptOne:
-        navbar[idx].setColor(NAV_TEXT_COLOR)
-        navbar[idx].setText(btn)
+OPI5_MODE = 0
+TEST_MODE = 1
+PC_MODE = 2
+
+current_mode = 1
+previous_mode = 0
 
 def highligh(idx: int):
-    navbar[idx].setColor(HIGHLIGHTED_NAV_TEXT_COLOR)
-    navbar[idx].setText(buttons[idx]+"<")
+    global current_mode
+    global previous_mode
+    if idx == current_mode:
+        return
+    previous_mode = current_mode
+    current_mode = idx
+    navbar[previous_mode].setColor(NAV_TEXT_COLOR)
+    navbar[current_mode].setColor(HIGHLIGHTED_NAV_TEXT_COLOR)
 
 def button_a_handler(state):
-    highligh(0)
-    dehighlight(0)
-    mqtt.subscribe(cfg.orangepi5_topic)
-    mqtt.unsubscribe(cfg.desktop_topic)
+    highligh(OPI5_MODE)
 
 def button_b_handler(state):
-    highligh(1)
-    dehighlight(1)
+    highligh(TEST_MODE)
 
 def button_c_handler(state):
-    highligh(2)
-    dehighlight(2)
-    mqtt.unsubscribe(cfg.orangepi5_topic)
-    mqtt.subscribe(cfg.desktop_topic)
+    highligh(PC_MODE)
 
 def buildWidgets(titles: list[str]):
     x_multiplier = 0
@@ -173,24 +173,28 @@ def parse_kv(s: str) -> dict:
 
 def on_message(topic, msg):
     if topic == MQTT_PC_TOPIC.encode('utf-8'):
+        if current_mode != PC_MODE:
+            return
         dict = parse_kv(msg)
-        valueLabels[0].setText(pcTitles[0] + ": " + dict["cpu"])      # CPU
-        valueLabels[1].setText(pcTitles[1] + ": "  + dict["ram"])      # RAM
-        valueLabels[2].setText(pcTitles[2] + ": "  + dict["temp_cpu"]) # TEMP CPU
+        valueLabels[0].setText(pcTitles[0] + ": " + dict["cpu"])        # CPU
+        valueLabels[1].setText(pcTitles[1] + ": "  + dict["ram"])       # RAM
+        valueLabels[2].setText(pcTitles[2] + ": "  + dict["temp_cpu"])  # TEMP CPU
 
-        valueLabels[3].setText(pcTitles[3] + ": "  + dict["gpu"])      # GPU
-        valueLabels[4].setText(pcTitles[4] + ": "  + dict["vram"])     # VRAM
-        valueLabels[5].setText(pcTitles[5] + ": "  + dict["temp_gpu"]) # TEMP GPU
+        valueLabels[3].setText(pcTitles[3] + ": "  + dict["gpu"])       # GPU
+        valueLabels[4].setText(pcTitles[4] + ": "  + dict["vram"])      # VRAM
+        valueLabels[5].setText(pcTitles[5] + ": "  + dict["temp_gpu"])  # TEMP GPU
 
     if topic == MQTT_OPI_TOPIC.encode('utf-8'):
+        if current_mode != OPI5_MODE:
+            return
         dict = parse_kv(msg)
-        valueLabels[0].setText(opi5Titles[0] + ": "  + dict["cpu"])      # CPU
-        valueLabels[1].setText(opi5Titles[1] + ": "  + dict["ram"])      # RAM
-        valueLabels[2].setText(opi5Titles[2] + ": "  + dict["temp_cpu"]) # TEMP CPU
+        valueLabels[0].setText(opi5Titles[0] + ": "  + dict["cpu"])     # CPU
+        valueLabels[1].setText(opi5Titles[1] + ": "  + dict["ram"])     # RAM
+        valueLabels[2].setText(opi5Titles[2] + ": "  + dict["temp_cpu"])# TEMP CPU
 
-        valueLabels[3].setText(opi5Titles[3] + ": "  + dict["net_spd"])      # GPU
+        valueLabels[3].setText(opi5Titles[3] + ": "  + dict["net_spd"]) # GPU
         valueLabels[4].setText(opi5Titles[4] + ": "  + dict["ssd"])     # VRAM
-        valueLabels[5].setText(opi5Titles[5] + ": "  + dict["zram"]) # TEMP GPU
+        valueLabels[5].setText(opi5Titles[5] + ": "  + dict["zram"])    # TEMP GPU
 
 def connect_mqtt(conf: AppConfig):
     print("SSID:", conf.wifi_ssid)
@@ -198,6 +202,7 @@ def connect_mqtt(conf: AppConfig):
     client = MQTTClient(MQTT_CLIENT_ID, conf.mqtt_broker_host, port=conf.mqtt_broker_port)
     client.set_callback(on_message)
     client.connect()
+    client.subscribe(conf.desktop_topic)
     client.subscribe(conf.orangepi5_topic)
     print("MQTT connected")
 
@@ -250,9 +255,9 @@ def setup():
     M5.Display.print("MQTT CONNECTED")
 
     Widgets.fillScreen(BACKGROUND_COLOR)
-    current_mode = "opi5"
+    current_mode = OPI5_MODE
     buildWidgets(opi5Titles)
-    highligh(0)
+    highligh(OPI5_MODE)
 
     BtnA.setCallback(type=BtnA.CB_TYPE.WAS_CLICKED,cb=button_a_handler)
     BtnB.setCallback(type=BtnB.CB_TYPE.WAS_CLICKED,cb=button_b_handler)
