@@ -82,30 +82,30 @@ IDX_NAV_TEXT_COLOR = 4
 IDX_TITLE_TEXT_COLOR = 5
 IDX_VALUE_TEXT_COLOR = 6
 
+themePointer = 10
+previousTheme = 0
 themes = [
     #[navbar] [navback]backg    nav back navcolor titlclr  valcolor
-    [0xFFFFFF,0xFFFFFF,0x333333,0x222222,0x666666,0xAAAAAA,0xFFFFFF], # GREY THEME
-    [0xFFFFFF,0xFFFFFF,0x1E2430,0x151A22,0x64748B,0x94A3B8,0xFFFFFF], # DARK BLUE THEME
-    [0xFFFFFF,0xFFFFFF,0x1C2521,0x121816,0x60756B,0x9AAFA5,0xFFFFFF], # DARK GREEN THEME
-    [0xFFFFFF,0xFFFFFF,0x211F2B,0x16151D,0x706A80,0xAAA4B8,0xFFFFFF], # CYBERPUNK THEME
-    [0xFFFFFF,0xFFFFFF,0x292722,0x1C1A17,0x756F63,0xADA79B,0xFFFFFF], # AMBER / INDUSTRIAL
-    [0x000000,0x00FF41,0x050805,0x0A120A,0x287A3D,0x5DBB72,0xD7FFD9], # MATRIX
-    [0x282A36,0xBD93F9,0x282A36,0x1E1F29,0x6272A4,0x8BE9FD,0xF8F8F2], # DRACULA
-    [0x2E3440,0x88C0D0,0x2E3440,0x242933,0x616E88,0xD8DEE9,0xECEFF4], # NORD
-    [0x001014,0x00E5FF,0x07181C,0x0B252B,0x39727C,0x76B9C2,0xD8FBFF], # CYAN TERMINAL
-    [0xFFFFFF,0xA855F7,0x17121F,0x0F0B14,0x6E5A7E,0xBFA8D1,0xFFFFFF], # PURPLE NEON
-    [0xFFFFFF,0xF97316,0x241A17,0x17110F,0x80675D,0xC9A99B,0xFFF7F2], # SUNSET
-    [0xFFFFFF,0x0EA5E9,0x0B1F2A,0x07151D,0x4D8299,0x8EC5DC,0xF0FAFF], # OCEAN
-    [0xFFFFFF,0x16A34A,0x101C15,0x0A120D,0x4C7659,0x9AC2A4,0xF0FFF3], # FOREST
-    [0x1A1200,0xFFB000,0x0F0C05,0x181207,0x80652A,0xC69D4D,0xFFE9A8], # AMBER TERMINAL
-    [0xFFFFFF,0xDC2626,0x1F1214,0x140A0C,0x7D4B52,0xC38B91,0xFFF5F5], # BLOOD MOON
-    [0x102027,0x67E8F9,0x15252B,0x0C171B,0x52727A,0xA5D8E0,0xECFEFF], # ICE
-    [0xFFF7ED,0xA16207,0x29211D,0x1C1512,0x78675D,0xC4B5AA,0xFFF7ED], # COFFEE
-    [0xFFFFFF,0x2563EB,0xF3F4F6,0xE5E7EB,0x6B7280,0x374151,0x111827], # LIGHT
-    [0x000000,0xFFFFFF,0x000000,0x080808,0x555555,0x888888,0xFFFFFF], # MONO OLED
+    [0xFFFFFF,0xFFFFFF,0x333333,0x222222,0x666666,0xAAAAAA,0xFFFFFF], # 0 GREY THEME
+    [0xFFFFFF,0xFFFFFF,0x1E2430,0x151A22,0x64748B,0x94A3B8,0xFFFFFF], # 1 DARK BLUE THEME
+    [0xFFFFFF,0xFFFFFF,0x1C2521,0x121816,0x60756B,0x9AAFA5,0xFFFFFF], # 2 DARK GREEN THEME
+    [0xFFFFFF,0xFFFFFF,0x211F2B,0x16151D,0x706A80,0xAAA4B8,0xFFFFFF], # 3 CYBERPUNK THEME
+    [0xFFFFFF,0xFFFFFF,0x292722,0x1C1A17,0x756F63,0xADA79B,0xFFFFFF], # 4 AMBER / INDUSTRIAL
+    [0x000000,0x00FF41,0x050805,0x0A120A,0x287A3D,0x5DBB72,0xD7FFD9], # 5 MATRIX
+    [0x282A36,0xBD93F9,0x282A36,0x1E1F29,0x6272A4,0x8BE9FD,0xF8F8F2], # 6 DRACULA
+    [0x2E3440,0x88C0D0,0x2E3440,0x242933,0x616E88,0xD8DEE9,0xECEFF4], # 7 NORD
+    [0x001014,0x00E5FF,0x07181C,0x0B252B,0x39727C,0x76B9C2,0xD8FBFF], # 8 CYAN TERMINAL
+    [0xFFFFFF,0xA855F7,0x17121F,0x0F0B14,0x6E5A7E,0xBFA8D1,0xFFFFFF], # 9 PURPLE NEON
+    [0xFFFFFF,0xF97316,0x241A17,0x17110F,0x80675D,0xC9A99B,0xFFF7F2], # 10 SUNSET
+    [0xFFFFFF,0x0EA5E9,0x0B1F2A,0x07151D,0x4D8299,0x8EC5DC,0xF0FAFF], # 11 OCEAN
+    [0xFFFFFF,0x16A34A,0x101C15,0x0A120D,0x4C7659,0x9AC2A4,0xF0FFF3], # 12 FOREST
+    [0x1A1200,0xFFB000,0x0F0C05,0x181207,0x80652A,0xC69D4D,0xFFE9A8], # 13 AMBER TERMINAL
+    [0xFFFFFF,0xDC2626,0x1F1214,0x140A0C,0x7D4B52,0xC38B91,0xFFF5F5], # 14 BLOOD MOON
+    [0x102027,0x67E8F9,0x15252B,0x0C171B,0x52727A,0xA5D8E0,0xECFEFF], # 15 ICE
+    [0xFFF7ED,0xA16207,0x29211D,0x1C1512,0x78675D,0xC4B5AA,0xFFF7ED], # 16 COFFEE
+    [0xFFFFFF,0x2563EB,0xF3F4F6,0xE5E7EB,0x6B7280,0x374151,0x111827], # 17 LIGHT
+    [0x000000,0xFFFFFF,0x000000,0x080808,0x555555,0x888888,0xFFFFFF], # 18 MONO OLED
 ]
-themePointer = 0
-
 
 WIDGETS_INITIAL_X = 15
 WIDGETS_INITIAL_Y = 20
@@ -140,9 +140,11 @@ previous_mode = 0
 
 def updateColors():
     global themePointer
-    if themePointer >= len(themes):
+    if themePointer == len(themes)-1:
+        previousTheme = themePointer
         themePointer = 0
     else:
+        previousTheme = themePointer
         themePointer = themePointer + 1
 
     Widgets.fillScreen(themes[themePointer][IDX_BACKGROUND_COLOR])
@@ -161,14 +163,14 @@ def updateColors():
     valueLabels[4].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
     valueLabels[5].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
 
-    navbar[0].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR])
-    navbar[1].setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR])
-    navbar[2].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR])
+    navbar[0].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_BACKGROUND_COLOR])
+    navbar[1].setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+    navbar[2].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_BACKGROUND_COLOR])
 
 def highligh(idx: int):
     global current_mode
     global previous_mode
-    if idx == current_mode:
+    if idx == current_mode and themePointer == previousTheme:
         return
     previous_mode = current_mode
     current_mode = idx
@@ -179,8 +181,8 @@ def button_a_handler(state):
     highligh(OPI5_MODE)
 
 def button_b_handler(state):
-    highligh(CLR_MODE)
     updateColors()
+    highligh(CLR_MODE)
 
 def button_c_handler(state):
     highligh(PC_MODE)
@@ -188,6 +190,8 @@ def button_c_handler(state):
 def buildWidgets(titles: list[str]):
     x_multiplier = 0
     y_multiplier = 0
+
+    Widgets.fillScreen(themes[themePointer][IDX_BACKGROUND_COLOR])
 
     for idx, title in enumerate(titles):
         if idx != 0 and idx % MAX_COLUMNS == 0:
@@ -313,8 +317,6 @@ def setup():
     M5.Display.setCursor(10,10)
     M5.Display.print("MQTT CONNECTED")
 
-    Widgets.fillScreen(themes[themePointer][IDX_BACKGROUND_COLOR])
-    current_mode = OPI5_MODE
     buildWidgets(opi5Titles)
     highligh(OPI5_MODE)
 
