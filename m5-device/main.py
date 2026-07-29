@@ -71,6 +71,44 @@ def connect_wifi(conf: AppConfig):
 
 
 # =========================
+# MQTT
+# =========================
+
+current_mode = 0
+previous_mode = 1
+
+MQTT_CLIENT_ID = b"m5stack-01"
+MQTT_PC_TOPIC = "pc/data"
+MQTT_OPI_TOPIC = "opi5/data"
+
+def parse_kv(s: str) -> dict:
+    if isinstance(s, bytes):
+        s = s.decode('utf-8')
+    return dict(pair.split(":", 1) for pair in s.split(","))
+
+def on_message(topic, msg):
+    if topic == MQTT_PC_TOPIC.encode('utf-8') and current_mode == PC_MODE:
+        dict = parse_kv(msg)
+        update(topic, dict)
+
+    if topic == MQTT_OPI_TOPIC.encode('utf-8') and current_mode == OPI5_MODE:
+        dict = parse_kv(msg)
+        update(topic, dict)
+
+def connect_mqtt(conf: AppConfig):
+    print("SSID:", conf.wifi_ssid)
+
+    client = MQTTClient(MQTT_CLIENT_ID, conf.mqtt_broker_host, port=conf.mqtt_broker_port)
+    client.set_callback(on_message)
+    client.connect()
+    client.subscribe(conf.desktop_topic)
+    client.subscribe(conf.orangepi5_topic)
+    print("MQTT connected")
+
+    return client
+
+
+# =========================
 # UI
 # =========================
 
@@ -82,8 +120,9 @@ IDX_NAV_TEXT_COLOR = 4
 IDX_TITLE_TEXT_COLOR = 5
 IDX_VALUE_TEXT_COLOR = 6
 
-themePointer = 10
-previousTheme = 0
+NAV_BUTTON_COLOR = IDX_NAV_TEXT_COLOR
+NAV_BUTTON_HIGHLIGHTED_COLOR = IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR
+
 themes = [
     #[navbar] [navback]backg    nav back navcolor titlclr  valcolor
     [0xFFFFFF,0xFFFFFF,0x333333,0x222222,0x666666,0xAAAAAA,0xFFFFFF], # 0 GREY THEME
@@ -107,44 +146,47 @@ themes = [
     [0x000000,0xFFFFFF,0x000000,0x080808,0x555555,0x888888,0xFFFFFF], # 18 MONO OLED
 ]
 
-WIDGETS_INITIAL_X = 15
-WIDGETS_INITIAL_Y = 20
-NAVBAR_INITIAL_X = 30
-NAVBAR_INITIAL_Y = 200
+WIDGETS_INITIAL_X = 20
+WIDGETS_INITIAL_Y = 45
 
 WIDGET_OFFSET_X = 100
 WIDGET_OFFSET_Y = 90
 VALUE_OFFSET_Y = 35
 
-TITLE_TEXT_SIZE = 1.5
-VALUE_TEXT_SIZE = 1.2
+TITLE_TEXT_SIZE = 1.4
+VALUE_TEXT_SIZE = 1.1
+HEADER_TEXT_SIZE = 1
 
 MAX_COLUMNS = 3
 
 
 pcTitles = ["CPU", "RAM", "TEMP", "GPU", "VRAM", "TEMP"]
 opi5Titles = ["CPU", "RAM", "TEMP", "DOWN", "SSD", "ZRAM"]
-buttons = ["OPI5", "CLR", "PC"]
+headers = ["opi5", "pc", "clr"]
 
 widgets = []
 valueLabels = []
-navbar  = []
+navHeaders  = []
+navButtons  = []
 
 OPI5_MODE = 0
-CLR_MODE = 1
-PC_MODE = 2
+PC_MODE = 1
+CLR_MODE = 2
+MODE_LIMIT = 2
 
-current_mode = 1
-previous_mode = 0
+themePointer = 13
+previousTheme = 0
+active_btn = 0
 
 
-def updateColors():
+def onChangeTheme():
     global themePointer
+    global previousTheme
+    previousTheme = themePointer
+
     if themePointer == len(themes)-1:
-        previousTheme = themePointer
         themePointer = 0
     else:
-        previousTheme = themePointer
         themePointer = themePointer + 1
 
     Widgets.fillScreen(themes[themePointer][IDX_BACKGROUND_COLOR])
@@ -163,29 +205,122 @@ def updateColors():
     valueLabels[4].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
     valueLabels[5].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
 
-    navbar[0].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_BACKGROUND_COLOR])
-    navbar[1].setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
-    navbar[2].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_BACKGROUND_COLOR])
+    navLines[0].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
+    navLines[1].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
 
-def highligh(idx: int):
-    global current_mode
-    global previous_mode
-    if idx == current_mode and themePointer == previousTheme:
-        return
-    previous_mode = current_mode
-    current_mode = idx
-    navbar[previous_mode].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_BACKGROUND_COLOR])
-    navbar[current_mode].setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+    navHeaders[0].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
+    navHeaders[1].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
+    navHeaders[2].setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+
+    navButtons[0].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
+    navButtons[1].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
+    navButtons[2].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
+
+def update(topic:str, dict: dict):
+    # same part between modes
+    valueLabels[0].setText(dict["cpu"])
+    valueLabels[1].setText(dict["ram"])
+    valueLabels[2].setText(dict["temp_cpu"])
+
+    if topic == MQTT_PC_TOPIC.encode('utf-8'):
+        widgets[3].setText(pcTitles[3])
+        widgets[4].setText(pcTitles[4])
+        widgets[5].setText(pcTitles[5])
+
+        valueLabels[3].setText(dict["gpu"])
+        valueLabels[4].setText(dict["vram"])
+        valueLabels[5].setText(dict["temp_gpu"])
+
+    if topic == MQTT_OPI_TOPIC.encode('utf-8'):
+        widgets[3].setText(opi5Titles[3])
+        widgets[4].setText(opi5Titles[4])
+        widgets[5].setText(opi5Titles[5])
+
+        valueLabels[3].setText(dict["net_spd"])
+        valueLabels[4].setText(dict["ssd"])
+        valueLabels[5].setText(dict["zram"])
+
+    navLines[0].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
+    navLines[1].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
+
+def printOnDisplay(str: str):
+    M5.Display.fillScreen(themes[themePointer][IDX_BACKGROUND_COLOR])
+    M5.Display.setCursor(10,10)
+    M5.Display.print(str, themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+
+def highlightNavButton(idx: int):
+    global active_btn
+    global highlighted
+    if active_btn != idx and not highlighted:
+        navButtons[active_btn].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
+        navButtons[idx].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
+        active_btn = idx
+        highlighted = True
+        global onNextFrame
+        onNextFrame = unhighlightNavButton
+
+highlighted = False
+
+onNextFrame = lambda: ()
+
+def unhighlightNavButton():
+    global active_btn
+    global highlighted
+    if highlighted:
+        navButtons[active_btn].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
+        highlighted = False
+
+# def updateNavHeaders():
+#     global navHeaders, current_focus
+#     for idx, header in navHeaders:
+#         if idx == current_focus:
+#             header.setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+#         else:
+#             header.setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
+
+current_focus = 0
+
+def switchFocus(next:bool):
+    global current_focus
+    navHeaders[current_focus].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
+
+    if next:
+        if current_focus == MODE_LIMIT:
+            current_focus = 0
+        else:
+            current_focus = current_focus + 1
+    else:
+        if current_focus == 0:
+            current_focus = MODE_LIMIT
+        else:
+            current_focus = current_focus - 1
+
+    navHeaders[current_focus].setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
 
 def button_a_handler(state):
-    highligh(OPI5_MODE)
+    switchFocus(False)
+
+    highlightNavButton(0)
 
 def button_b_handler(state):
-    updateColors()
-    highligh(CLR_MODE)
+    if current_focus == OPI5_MODE:
+        global current_mode
+        current_mode = OPI5_MODE
+    if current_focus == PC_MODE:
+        global current_mode
+        current_mode = PC_MODE
+    if current_focus == CLR_MODE:
+        current_mode = CLR_MODE
+        onChangeTheme()
+
+    highlightNavButton(1)
 
 def button_c_handler(state):
-    highligh(PC_MODE)
+    switchFocus(True)
+
+    highlightNavButton(2)
+
+navLines = []
 
 def buildWidgets(titles: list[str]):
     x_multiplier = 0
@@ -209,69 +344,16 @@ def buildWidgets(titles: list[str]):
 
         x_multiplier += 1
 
-    navbar.append(Widgets.Label(buttons[0], 30, 210, VALUE_TEXT_SIZE, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_BACKGROUND_COLOR], Widgets.FONTS.DejaVu24))
-    navbar.append(Widgets.Label(buttons[1], 135, 210, VALUE_TEXT_SIZE, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_BACKGROUND_COLOR], Widgets.FONTS.DejaVu24))
-    navbar.append(Widgets.Label(buttons[2], 233, 210, VALUE_TEXT_SIZE, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_BACKGROUND_COLOR], Widgets.FONTS.DejaVu24))
+    navHeaders.append(Widgets.Label(headers[0], 5, 2, VALUE_TEXT_SIZE, themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], Widgets.FONTS.DejaVu24))
+    navHeaders.append(Widgets.Label(headers[1], 75, 2, VALUE_TEXT_SIZE, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR], Widgets.FONTS.DejaVu24))
+    navHeaders.append(Widgets.Label(headers[2], 120, 2, VALUE_TEXT_SIZE, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR], Widgets.FONTS.DejaVu24))
 
+    navLines.append(Widgets.Rectangle(0, 0, 320, 2, NAV_BUTTON_HIGHLIGHTED_COLOR, NAV_BUTTON_HIGHLIGHTED_COLOR))
+    navLines.append(Widgets.Rectangle(0, 31, 320, 2, NAV_BUTTON_HIGHLIGHTED_COLOR, NAV_BUTTON_HIGHLIGHTED_COLOR))
 
-# =========================
-# MQTT
-# =========================
-
-MQTT_CLIENT_ID = b"m5stack-01"
-MQTT_PC_TOPIC = "pc/data"
-MQTT_OPI_TOPIC = "opi5/data"
-
-def parse_kv(s: str) -> dict:
-    if isinstance(s, bytes):
-        s = s.decode('utf-8')
-    return dict(pair.split(":", 1) for pair in s.split(","))
-
-def on_message(topic, msg):
-    if topic == MQTT_PC_TOPIC.encode('utf-8'):
-        if current_mode != PC_MODE:
-            return
-        dict = parse_kv(msg)
-        widgets[3].setText(pcTitles[3]) # title GPU
-        widgets[4].setText(pcTitles[4]) # title VRAM
-        widgets[5].setText(pcTitles[5]) # title TEMP GPU
-
-        valueLabels[0].setText(dict["cpu"])       # CPU
-        valueLabels[1].setText(dict["ram"])       # RAM
-        valueLabels[2].setText(dict["temp_cpu"])  # TEMP CPU
-
-        valueLabels[3].setText(dict["gpu"])       # GPU
-        valueLabels[4].setText(dict["vram"])      # VRAM
-        valueLabels[5].setText(dict["temp_gpu"])  # TEMP GPU
-
-    if topic == MQTT_OPI_TOPIC.encode('utf-8'):
-        if current_mode != OPI5_MODE:
-            return
-        dict = parse_kv(msg)
-        widgets[3].setText(opi5Titles[3])   # title DOWN SPD
-        widgets[4].setText(opi5Titles[4])   # title SSD
-        widgets[5].setText(opi5Titles[5])   # title ZRAM
-
-        valueLabels[0].setText(dict["cpu"])      # CPU
-        valueLabels[1].setText(dict["ram"])      # RAM
-        valueLabels[2].setText(dict["temp_cpu"]) # TEMP CPU
-
-        valueLabels[3].setText(dict["net_spd"]) # GPU
-        valueLabels[4].setText(dict["ssd"])     # VRAM
-        valueLabels[5].setText(dict["zram"])    # TEMP GPU
-
-def connect_mqtt(conf: AppConfig):
-    print("SSID:", conf.wifi_ssid)
-
-    client = MQTTClient(MQTT_CLIENT_ID, conf.mqtt_broker_host, port=conf.mqtt_broker_port)
-    client.set_callback(on_message)
-    client.connect()
-    client.subscribe(conf.desktop_topic)
-    client.subscribe(conf.orangepi5_topic)
-    print("MQTT connected")
-
-    return client
-
+    navButtons.append(Widgets.Triangle(92, 219, 37, 230, 92, 237, themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR]))
+    navButtons.append(Widgets.Triangle(158, 221, 126, 236, 188, 236, themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR]))
+    navButtons.append(Widgets.Triangle(220, 219, 220, 236, 276, 230, themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR]))
 
 # =========================
 # Setup
@@ -288,9 +370,7 @@ def setup():
     M5.begin()
     time.sleep(0.5)
 
-    M5.Display.fillScreen(0x000000)
-    M5.Display.setCursor(10,10)
-    M5.Display.print("Reading agent-conf.json...")
+    printOnDisplay("Reading agent-conf.json...")
     global cfg
     cfg = AppConfig()
     cfg.load_from_file("/sd/conf.json")
@@ -299,26 +379,20 @@ def setup():
     print("MQTT host:", cfg.mqtt_broker_host)
     print("MQTT port:", cfg.mqtt_broker_port)
 
-    M5.Display.fillScreen(0x000000)
-    M5.Display.setCursor(10,10)
-    M5.Display.print("Connecting Wi-Fi...")
-
-    print("before connect wifi")
+    printOnDisplay("Connecting Wi-Fi...", )
     connect_wifi(cfg)
-    print("after connect wifi")
 
-    M5.Display.fillScreen(0x000000)
-    M5.Display.setCursor(10,10)
-    M5.Display.print("Connecting MQTT...")
-
+    printOnDisplay("Connecting MQTT...")
     global mqtt
     mqtt = connect_mqtt(cfg)
-    M5.Display.fillScreen(0x000000)
-    M5.Display.setCursor(10,10)
-    M5.Display.print("MQTT CONNECTED")
+    printOnDisplay("MQTT CONNECTED")
 
+    time.sleep(0.5)
+    global current_mode
+    global current_focus
+    current_mode = OPI5_MODE
+    current_focus = OPI5_MODE
     buildWidgets(opi5Titles)
-    highligh(OPI5_MODE)
 
     BtnA.setCallback(type=BtnA.CB_TYPE.WAS_CLICKED,cb=button_a_handler)
     BtnB.setCallback(type=BtnB.CB_TYPE.WAS_CLICKED,cb=button_b_handler)
@@ -331,6 +405,8 @@ def setup():
 
 def loop():
     M5.update()
+    global onNextFrame
+    onNextFrame()
     mqtt.check_msg()
     time.sleep(0.1)
 
