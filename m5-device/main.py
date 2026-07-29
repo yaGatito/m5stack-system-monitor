@@ -249,25 +249,21 @@ def printOnDisplay(str: str):
     M5.Display.print(str, themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
 
 def highlightNavButton(idx: int):
-    global active_btn
     global highlighted
-    if active_btn != idx and not highlighted:
-        navButtons[active_btn].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
+    if not highlighted:
         navButtons[idx].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
-        active_btn = idx
         highlighted = True
         global onNextFrame
-        onNextFrame = unhighlightNavButton
+        onNextFrame = lambda: unhighlightNavButton(idx)
 
 highlighted = False
 
 onNextFrame = lambda: ()
 
-def unhighlightNavButton():
-    global active_btn
+def unhighlightNavButton(idx: int):
     global highlighted
     if highlighted:
-        navButtons[active_btn].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
+        navButtons[idx].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
         highlighted = False
 
 # def updateNavHeaders():
