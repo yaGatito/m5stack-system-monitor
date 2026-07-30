@@ -63,8 +63,8 @@ func main() {
 		for {
 			pcstats := getSystemDesktopStats()
 			_ = mqtt.Publish(MQTT_DESKTOP_TOPIC, 0, true,
-				fmt.Sprintf("gpu:%d%%,vram:%.1fG,temp_gpu:%d°,cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°",
-					pcstats.gpuUtilPerc, pcstats.vramGb, pcstats.tempGpuCels, pcstats.cpuUtilPerc, pcstats.ramGb, pcstats.tempCpuCels))
+				fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,gpu:%d%%,vram:%.1fG,temp_gpu:%d°",
+					pcstats.cpuUtilPerc, pcstats.ramGb, pcstats.tempCpuCels, pcstats.gpuUtilPerc, pcstats.vramGb, pcstats.tempGpuCels))
 
 			time.Sleep(UPDATE_DELAY)
 		}

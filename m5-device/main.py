@@ -14,6 +14,24 @@ from umqtt.simple import MQTTClient
 # Configuration
 # =========================
 
+class ScreenConfig:
+    def __init__(self):
+        self.screen_key = ""
+        self.header = ""
+        self.mqtt_topic = ""
+        self.widgets = []
+        self.events = []
+        self.theme = 0
+
+    def _load_screen(self, data, i):
+        self.screen_key = f"screen_{i}"
+        self.header = data[self.screen_key]["header"]
+        self.mqtt_topic = data[self.screen_key]["mqtt_topic"]
+        self.widgets = list(data[self.screen_key]["widgets"])
+        self.events = list(data[self.screen_key]["events"])
+        self.theme = data[self.screen_key]["theme"]
+
+
 class AppConfig:
     def __init__(self):
         self.wifi_ssid = "empty"
@@ -21,8 +39,8 @@ class AppConfig:
         self.update_rate = 0.5
         self.mqtt_broker_host="192.168.31.169"
         self.mqtt_broker_port="1883"
-        self.desktop_topic="pc/data"
-        self.orangepi5_topic="opi5/data"
+        self.screens: list[ScreenConfig] = []
+        self.screens_number=1
 
     def load_from_file(self, filename):
         try:
@@ -44,8 +62,17 @@ class AppConfig:
                 self.update_rate = data.get("update_rate")
                 self.mqtt_broker_host = data.get("mqtt_broker_host")
                 self.mqtt_broker_port = data.get("mqtt_broker_port")
-                self.desktop_topic = data.get("desktop_topic")
-                self.orangepi5_topic = data.get("orangepi5_topic")
+                screens_amount = int(data.get("screens_number"))
+                self.screens_number = screens_amount 
+                for i in range(1, self.screens_number+1):
+                    sconf = ScreenConfig()
+                    sconf._load_screen(data, i)
+                    self.screens.append(sconf)
+
+                    print("Received mqtt topic: ", sconf.mqtt_topic)
+
+                print("Received_11 mqtt topic: ", self.screens[0].mqtt_topic)
+                print("Received_22 mqtt topic: ", self.screens[1].mqtt_topic)
 
         except Exception as e:
             print("Failed to load conf:", e)
@@ -55,18 +82,19 @@ class AppConfig:
 # Wi-Fi connection
 # =========================
 
-def connect_wifi(conf: AppConfig):
+def connect_wifi():
+    global cfg
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
 
     if not wlan.isconnected():
         print("Connecting to Wi-Fi...")
-        wlan.connect(conf.wifi_ssid, conf.wifi_pass)
+        wlan.connect(cfg.wifi_ssid, cfg.wifi_pass)
 
         while not wlan.isconnected():
             time.sleep(0.5)
 
-    print("Wi-Fi connected to ",conf.wifi_ssid)
+    print("Wi-Fi connected to ",cfg.wifi_ssid)
     print("Device IP address:",wlan.ifconfig()[0])
 
 
@@ -78,8 +106,6 @@ current_mode = 0
 previous_mode = 1
 
 MQTT_CLIENT_ID = b"m5stack-01"
-MQTT_PC_TOPIC = "pc/data"
-MQTT_OPI_TOPIC = "opi5/data"
 
 def parse_kv(s: str) -> dict:
     if isinstance(s, bytes):
@@ -87,22 +113,24 @@ def parse_kv(s: str) -> dict:
     return dict(pair.split(":", 1) for pair in s.split(","))
 
 def on_message(topic, msg):
-    if topic == MQTT_PC_TOPIC.encode('utf-8') and current_mode == PC_MODE:
-        dict = parse_kv(msg)
-        update(topic, dict)
+    global cfg, screens
+    for i in range(cfg.screens_number):
+        cfg_topic = str(screens[i].mqtt_topic)
+        if topic == cfg_topic.encode('utf-8') and current_mode == i:
+            dict = parse_kv(msg)
+            update(topic, dict, screens[i].widgets, screens[i].events)
 
-    if topic == MQTT_OPI_TOPIC.encode('utf-8') and current_mode == OPI5_MODE:
-        dict = parse_kv(msg)
-        update(topic, dict)
+def connect_mqtt():
+    global cfg, screens
+    print("SSID:", cfg.wifi_ssid)
 
-def connect_mqtt(conf: AppConfig):
-    print("SSID:", conf.wifi_ssid)
-
-    client = MQTTClient(MQTT_CLIENT_ID, conf.mqtt_broker_host, port=conf.mqtt_broker_port)
+    client = MQTTClient(MQTT_CLIENT_ID, cfg.mqtt_broker_host, port=cfg.mqtt_broker_port)
     client.set_callback(on_message)
     client.connect()
-    client.subscribe(conf.desktop_topic)
-    client.subscribe(conf.orangepi5_topic)
+
+    for i in range(cfg.screens_number):
+        client.subscribe(screens[i].mqtt_topic)
+
     print("MQTT connected")
 
     return client
@@ -120,8 +148,6 @@ IDX_NAV_TEXT_COLOR = 4
 IDX_TITLE_TEXT_COLOR = 5
 IDX_VALUE_TEXT_COLOR = 6
 
-NAV_BUTTON_COLOR = IDX_NAV_TEXT_COLOR
-NAV_BUTTON_HIGHLIGHTED_COLOR = IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR
 
 themes = [
     #[navbar] [navback]backg    nav back navcolor titlclr  valcolor
@@ -159,168 +185,23 @@ HEADER_TEXT_SIZE = 1
 
 MAX_COLUMNS = 3
 
-
-pcTitles = ["CPU", "RAM", "TEMP", "GPU", "VRAM", "TEMP"]
-opi5Titles = ["CPU", "RAM", "TEMP", "DOWN", "SSD", "ZRAM"]
-headers = ["opi5", "pc", "clr"]
-
 widgets = []
 valueLabels = []
 navHeaders  = []
 navButtons  = []
 
-OPI5_MODE = 0
-PC_MODE = 1
-CLR_MODE = 2
-MODE_LIMIT = 2
+extraModes = ["clr"]
 
 themePointer = 13
 previousTheme = 0
-active_btn = 0
 
-
-def onChangeTheme():
-    global themePointer
-    global previousTheme
-    previousTheme = themePointer
-
-    if themePointer == len(themes)-1:
-        themePointer = 0
-    else:
-        themePointer = themePointer + 1
-
-    Widgets.fillScreen(themes[themePointer][IDX_BACKGROUND_COLOR])
-
-    widgets[0].setColor(themes[themePointer][IDX_TITLE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-    widgets[1].setColor(themes[themePointer][IDX_TITLE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-    widgets[2].setColor(themes[themePointer][IDX_TITLE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-    widgets[3].setColor(themes[themePointer][IDX_TITLE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-    widgets[4].setColor(themes[themePointer][IDX_TITLE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-    widgets[5].setColor(themes[themePointer][IDX_TITLE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-
-    valueLabels[0].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-    valueLabels[1].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-    valueLabels[2].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-    valueLabels[3].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-    valueLabels[4].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-    valueLabels[5].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
-
-    navLines[0].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
-    navLines[1].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
-
-    navHeaders[0].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
-    navHeaders[1].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
-    navHeaders[2].setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
-
-    navButtons[0].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
-    navButtons[1].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
-    navButtons[2].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
-
-def update(topic:str, dict: dict):
-    # same part between modes
-    valueLabels[0].setText(dict["cpu"])
-    valueLabels[1].setText(dict["ram"])
-    valueLabels[2].setText(dict["temp_cpu"])
-
-    if topic == MQTT_PC_TOPIC.encode('utf-8'):
-        widgets[3].setText(pcTitles[3])
-        widgets[4].setText(pcTitles[4])
-        widgets[5].setText(pcTitles[5])
-
-        valueLabels[3].setText(dict["gpu"])
-        valueLabels[4].setText(dict["vram"])
-        valueLabels[5].setText(dict["temp_gpu"])
-
-    if topic == MQTT_OPI_TOPIC.encode('utf-8'):
-        widgets[3].setText(opi5Titles[3])
-        widgets[4].setText(opi5Titles[4])
-        widgets[5].setText(opi5Titles[5])
-
-        valueLabels[3].setText(dict["net_spd"])
-        valueLabels[4].setText(dict["ssd"])
-        valueLabels[5].setText(dict["zram"])
-
-    navLines[0].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
-    navLines[1].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
-
-def printOnDisplay(str: str):
-    M5.Display.fillScreen(themes[themePointer][IDX_BACKGROUND_COLOR])
-    M5.Display.setCursor(10,10)
-    M5.Display.print(str, themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
-
-def highlightNavButton(idx: int):
-    global highlighted
-    if not highlighted:
-        navButtons[idx].setColor(themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR], themes[themePointer][NAV_BUTTON_HIGHLIGHTED_COLOR])
-        highlighted = True
-        global onNextFrame
-        onNextFrame = lambda: unhighlightNavButton(idx)
-
-highlighted = False
-
-onNextFrame = lambda: ()
-
-def unhighlightNavButton(idx: int):
-    global highlighted
-    if highlighted:
-        navButtons[idx].setColor(themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR])
-        highlighted = False
-
-# def updateNavHeaders():
-#     global navHeaders, current_focus
-#     for idx, header in navHeaders:
-#         if idx == current_focus:
-#             header.setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
-#         else:
-#             header.setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
-
-current_focus = 0
-
-def switchFocus(next:bool):
-    global current_focus
-    navHeaders[current_focus].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
-
-    if next:
-        if current_focus == MODE_LIMIT:
-            current_focus = 0
-        else:
-            current_focus = current_focus + 1
-    else:
-        if current_focus == 0:
-            current_focus = MODE_LIMIT
-        else:
-            current_focus = current_focus - 1
-
-    navHeaders[current_focus].setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
-
-def button_a_handler(state):
-    switchFocus(False)
-
-    highlightNavButton(0)
-
-def button_b_handler(state):
-    if current_focus == OPI5_MODE:
-        global current_mode
-        current_mode = OPI5_MODE
-    if current_focus == PC_MODE:
-        global current_mode
-        current_mode = PC_MODE
-    if current_focus == CLR_MODE:
-        current_mode = CLR_MODE
-        onChangeTheme()
-
-    highlightNavButton(1)
-
-def button_c_handler(state):
-    switchFocus(True)
-
-    highlightNavButton(2)
-
-navLines = []
 
 def buildWidgets(titles: list[str]):
+    global cfg, themePointer
     x_multiplier = 0
     y_multiplier = 0
+
+    themePointer = cfg.screens[0].theme
 
     Widgets.fillScreen(themes[themePointer][IDX_BACKGROUND_COLOR])
 
@@ -340,16 +221,152 @@ def buildWidgets(titles: list[str]):
 
         x_multiplier += 1
 
-    navHeaders.append(Widgets.Label(headers[0], 5, 2, VALUE_TEXT_SIZE, themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], Widgets.FONTS.DejaVu24))
-    navHeaders.append(Widgets.Label(headers[1], 75, 2, VALUE_TEXT_SIZE, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR], Widgets.FONTS.DejaVu24))
-    navHeaders.append(Widgets.Label(headers[2], 120, 2, VALUE_TEXT_SIZE, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR], Widgets.FONTS.DejaVu24))
+    x_header_offset = 70
+    for i, scr in enumerate(cfg.screens):
+        if i == 0:
+            txt_color = themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR]
+            back_color = themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR]
+        else:
+            txt_color = themes[themePointer][IDX_NAV_TEXT_COLOR]
+            back_color = themes[themePointer][IDX_NAV_BACKGROUND_COLOR]
 
-    navLines.append(Widgets.Rectangle(0, 0, 320, 2, NAV_BUTTON_HIGHLIGHTED_COLOR, NAV_BUTTON_HIGHLIGHTED_COLOR))
-    navLines.append(Widgets.Rectangle(0, 31, 320, 2, NAV_BUTTON_HIGHLIGHTED_COLOR, NAV_BUTTON_HIGHLIGHTED_COLOR))
+        print("build screen", scr.header)
+        navHeaders.append(Widgets.Label(scr.header, 5 + (i * x_header_offset), 2, HEADER_TEXT_SIZE, txt_color, back_color, Widgets.FONTS.DejaVu24))
 
-    navButtons.append(Widgets.Triangle(92, 219, 37, 230, 92, 237, themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR]))
-    navButtons.append(Widgets.Triangle(158, 221, 126, 236, 188, 236, themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR]))
-    navButtons.append(Widgets.Triangle(220, 219, 220, 236, 276, 230, themes[themePointer][NAV_BUTTON_COLOR], themes[themePointer][NAV_BUTTON_COLOR]))
+    for i in range(len(extraModes)):
+        navHeaders.append(Widgets.Label(extraModes[i], 5 + ((i + cfg.screens_number) * x_header_offset), 2, HEADER_TEXT_SIZE, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR], Widgets.FONTS.DejaVu24))
+
+    navLines.append(Widgets.Rectangle(0, 0, 320, 2, themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR]))
+    navLines.append(Widgets.Rectangle(0, 30, 320, 2, themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR]))
+
+    navButtons.append(Widgets.Triangle(92, 219, 37, 230, 92, 237, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR]))
+    navButtons.append(Widgets.Triangle(158, 221, 126, 236, 188, 236, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR]))
+    navButtons.append(Widgets.Triangle(220, 219, 220, 236, 276, 230, themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR]))
+
+
+def switchTheme():
+    global previousTheme, themePointer
+    previousTheme = themePointer
+    if themePointer == len(themes)-1:
+        themePointer = 0
+    else:
+        themePointer = themePointer + 1
+
+
+def updateTheme():
+    global themePointer
+
+    Widgets.fillScreen(themes[themePointer][IDX_BACKGROUND_COLOR])
+    for i, widget in enumerate(widgets):
+        widget.setColor(themes[themePointer][IDX_TITLE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
+        valueLabels[i].setColor(themes[themePointer][IDX_VALUE_TEXT_COLOR], themes[themePointer][IDX_BACKGROUND_COLOR])
+
+    for line in navLines:
+        line.setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+
+    for i, navHeader in enumerate(navHeaders):
+        if i == current_focus:
+            navHeader.setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+        else:
+            navHeader.setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
+
+    for navButton in navButtons:
+        navButton.setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
+
+
+def update(topic:str, dict: dict, titles:list, events: list):
+    if len(valueLabels) == 0:
+        return
+ 
+    # same part between modes
+    global cfg, screens
+    for i in range(cfg.screens_number):
+        cfg_topic = cfg.screens[i].mqtt_topic
+        if topic == cfg_topic.encode('utf-8'):
+            widgets[0].setText(titles[0])
+            widgets[1].setText(titles[1])
+            widgets[2].setText(titles[2])
+            widgets[3].setText(titles[3])
+            widgets[4].setText(titles[4])
+            widgets[5].setText(titles[5])
+
+            valueLabels[0].setText(dict[events[0]])
+            valueLabels[1].setText(dict[events[1]])
+            valueLabels[2].setText(dict[events[2]])
+            valueLabels[3].setText(dict[events[3]])
+            valueLabels[4].setText(dict[events[4]])
+            valueLabels[5].setText(dict[events[5]])
+
+
+def printOnDisplay(str: str):
+    M5.Display.fillScreen(themes[themePointer][IDX_BACKGROUND_COLOR])
+    M5.Display.setCursor(10,10)
+    M5.Display.print(str, themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+
+def highlightNavButton(idx: int):
+    global highlighted
+    if not highlighted:
+        navButtons[idx].setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+        highlighted = True
+        global onNextFrame
+        onNextFrame = lambda: unhighlightNavButton(idx)
+
+highlighted = False
+
+onNextFrame = lambda: ()
+
+def unhighlightNavButton(idx: int):
+    global highlighted
+    if highlighted:
+        navButtons[idx].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
+        highlighted = False
+
+current_focus = 0
+
+def switchFocus(next:bool):
+    global current_focus
+    navHeaders[current_focus].setColor(themes[themePointer][IDX_NAV_TEXT_COLOR], themes[themePointer][IDX_NAV_TEXT_COLOR])
+
+    if next:
+        if current_focus == len(modes)-1:
+            current_focus = 0
+        else:
+            current_focus = current_focus + 1
+    else:
+        if current_focus == 0:
+            current_focus = len(modes)-1
+        else:
+            current_focus = current_focus - 1
+
+    navHeaders[current_focus].setColor(themes[themePointer][IDX_HIGHLIGHTED_NAV_TEXT_COLOR], themes[themePointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+
+def button_a_handler(state):
+    switchFocus(False)
+
+    highlightNavButton(0)
+
+def button_b_handler(state):
+    global current_mode, themePointer, cfg
+    for i, mod in enumerate(modes):
+        if current_focus == mod and i < cfg.screens_number:
+            current_mode = mod
+            if themePointer != screens[i].theme:
+                themePointer = screens[i].theme
+                updateTheme()
+        elif current_focus == mod and i >= cfg.screens_number:
+            if i - cfg.screens_number == 0: # first of extra screens
+                current_mode = mod
+                switchTheme()
+                updateTheme()
+
+    highlightNavButton(1)
+
+def button_c_handler(state):
+    switchFocus(True)
+
+    highlightNavButton(2)
+
+navLines = []
 
 # =========================
 # Setup
@@ -364,31 +381,33 @@ def buildWidgets(titles: list[str]):
 
 def setup():
     M5.begin()
-    time.sleep(0.5)
+    global cfg, screens, current_mode, current_focus, mqtt, modes
 
-    printOnDisplay("Reading agent-conf.json...")
-    global cfg
+    printOnDisplay("Reading config...")
     cfg = AppConfig()
     cfg.load_from_file("/sd/conf.json")
+ 
+    screens: list[ScreenConfig] = cfg.screens
 
     print("SSID:", cfg.wifi_ssid)
     print("MQTT host:", cfg.mqtt_broker_host)
     print("MQTT port:", cfg.mqtt_broker_port)
 
     printOnDisplay("Connecting Wi-Fi...", )
-    connect_wifi(cfg)
+    connect_wifi()
 
     printOnDisplay("Connecting MQTT...")
-    global mqtt
-    mqtt = connect_mqtt(cfg)
+
+    mqtt = connect_mqtt()
     printOnDisplay("MQTT CONNECTED")
 
-    time.sleep(0.5)
-    global current_mode
-    global current_focus
-    current_mode = OPI5_MODE
-    current_focus = OPI5_MODE
-    buildWidgets(opi5Titles)
+    modes = []
+    for i in range(cfg.screens_number + (len(extraModes))):
+        modes.append(i)
+    current_mode = 0
+    current_focus = 0
+
+    buildWidgets(cfg.screens[0].widgets)
 
     BtnA.setCallback(type=BtnA.CB_TYPE.WAS_CLICKED,cb=button_a_handler)
     BtnB.setCallback(type=BtnB.CB_TYPE.WAS_CLICKED,cb=button_b_handler)

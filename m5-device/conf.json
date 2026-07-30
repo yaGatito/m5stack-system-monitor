@@ -4,6 +4,27 @@
   "update_rate":0.5,
   "mqtt_broker_host":"192.168.31.169",
   "mqtt_broker_port":"1883",
-  "desktop_topic":"pc/data",
-  "orangepi5_topic":"opi5/data"
+
+  "screens_number":3,
+  "screen_1":{
+    "header":"opi5",
+    "theme":13,
+    "mqtt_topic":"opi5/data",
+    "widgets":  ["CPU", "RAM",  "TEMP",     "NET",     "SSD",  "ZRAM"],
+    "events":   ["cpu", "ram",  "temp_cpu", "net_spd",  "ssd",  "zram"]
+  },
+  "screen_2":{
+    "theme":5,
+    "header":"pc",
+    "mqtt_topic":"pc/data",
+    "widgets":["CPU", "RAM", "TEMP", "GPU", "VRAM", "TEMP"],
+    "events":["cpu","ram","temp_cpu","gpu","vram", "temp_gpu"]
+  },
+  "screen_3":{
+    "theme":6,
+    "header":"fcst",
+    "mqtt_topic":"pc/data",
+    "widgets":["DAY", "TEMP", "HIGH", "", "WIND", "LOW"],
+    "events":["cpu","ram","temp_cpu","gpu","vram", "temp_gpu"]
+  }
 }
