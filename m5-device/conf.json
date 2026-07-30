@@ -24,7 +24,7 @@
     "theme":6,
     "header":"fcst",
     "mqtt_topic":"pc/data",
-    "widgets":["DAY", "TEMP", "HIGH", "", "WIND", "LOW"],
+    "widgets":["DAY", "TEMP", "HIGH", "PRSR", "WIND", "LOW"],
     "events":["cpu","ram","temp_cpu","gpu","vram", "temp_gpu"]
   }
 }

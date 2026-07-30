@@ -14,7 +14,7 @@ from umqtt.simple import MQTTClient
 # Configuration
 # =========================
 
-class ScreenConfig:
+class ScreenSetConfig:
     def __init__(self):
         self.screen_key = ""
         self.header = ""
@@ -39,7 +39,7 @@ class AppConfig:
         self.update_rate = 0.5
         self.mqtt_broker_host="192.168.31.169"
         self.mqtt_broker_port="1883"
-        self.screens: list[ScreenConfig] = []
+        self.screens: list[ScreenSetConfig] = []
         self.screens_number=1
 
     def load_from_file(self, filename):
@@ -65,7 +65,7 @@ class AppConfig:
                 screens_amount = int(data.get("screens_number"))
                 self.screens_number = screens_amount 
                 for i in range(1, self.screens_number+1):
-                    sconf = ScreenConfig()
+                    sconf = ScreenSetConfig()
                     sconf._load_screen(data, i)
                     self.screens.append(sconf)
 
@@ -248,13 +248,13 @@ ANIM_TEXT_SIZE_FACTOR = 0.2
 MAX_COLUMNS = 3
 
 widgets = []
-valueLabels = []
-navButtons  = []
+value_labels = []
+nav_buttons  = []
 
-extraModes = ["clr"]
+extra_modes = ["clr"]
 
 theme_pointer = 13
-previousTheme = 0
+previous_theme = 0
 
 
 def buildWidgets(titles: list[str]):
@@ -277,7 +277,7 @@ def buildWidgets(titles: list[str]):
         widgets.append(
             Widgets.Label(title, x, y, TITLE_TEXT_SIZE, themes[theme_pointer][IDX_TITLE_TEXT_COLOR], themes[theme_pointer][IDX_BACKGROUND_COLOR], Widgets.FONTS.DejaVu18))
 
-        valueLabels.append(
+        value_labels.append(
             Widgets.Label("0", x, y + VALUE_OFFSET_Y, VALUE_TEXT_SIZE, themes[theme_pointer][IDX_VALUE_TEXT_COLOR], themes[theme_pointer][IDX_BACKGROUND_COLOR], Widgets.FONTS.DejaVu24))
 
         x_multiplier += 1
@@ -294,43 +294,34 @@ def buildWidgets(titles: list[str]):
 
         visible_nav_labels.append(Widgets.Label(modes[i], POSITIONS[i], 2, HEADER_TEXT_SIZE, txt_color, back_color, Widgets.FONTS.DejaVu24))
 
-    navLines.append(Widgets.Rectangle(0, 0, 320, 2, themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR]))
-    navLines.append(Widgets.Rectangle(0, 31, 320, 2, themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR]))
+    nav_lines.append(Widgets.Rectangle(0, 0, 320, 2, themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR]))
+    nav_lines.append(Widgets.Rectangle(0, 31, 320, 2, themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR]))
 
-    navButtons.append(Widgets.Triangle(90, 219, 39, 229, 90, 240, themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR]))
-    navButtons.append(Widgets.Rectangle(128, 219, 55, 21, themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR]))
-    navButtons.append(Widgets.Triangle(219, 219, 276, 229, 219, 240, themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR]))
-
-
-def switchTheme():
-    global previousTheme, theme_pointer
-    previousTheme = theme_pointer
-    if theme_pointer == len(themes)-1:
-        theme_pointer = 0
-    else:
-        theme_pointer = theme_pointer + 1
+    nav_buttons.append(Widgets.Triangle(90, 219, 39, 229, 90, 240, themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR]))
+    nav_buttons.append(Widgets.Rectangle(128, 219, 55, 21, themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR]))
+    nav_buttons.append(Widgets.Triangle(219, 219, 276, 229, 219, 240, themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR]))
 
 
-def updateTheme():
+def update_theme():
     global theme_pointer
 
     Widgets.fillScreen(themes[theme_pointer][IDX_BACKGROUND_COLOR])
 
     for i, widget in enumerate(widgets):
         widget.setColor(themes[theme_pointer][IDX_TITLE_TEXT_COLOR], themes[theme_pointer][IDX_BACKGROUND_COLOR])
-        valueLabels[i].setColor(themes[theme_pointer][IDX_VALUE_TEXT_COLOR], themes[theme_pointer][IDX_BACKGROUND_COLOR])
+        value_labels[i].setColor(themes[theme_pointer][IDX_VALUE_TEXT_COLOR], themes[theme_pointer][IDX_BACKGROUND_COLOR])
 
-    for line in navLines:
+    for line in nav_lines:
         line.setColor(themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
 
     update_nav()
 
-    for navButton in navButtons:
-        navButton.setColor(themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR])
+    for button in nav_buttons:
+        button.setColor(themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR])
 
 
 def update(topic:str, dict: dict, titles:list, events: list):
-    if len(valueLabels) == 0:
+    if len(value_labels) == 0:
         return
  
     # same part between modes
@@ -345,12 +336,12 @@ def update(topic:str, dict: dict, titles:list, events: list):
             widgets[4].setText(titles[4])
             widgets[5].setText(titles[5])
 
-            valueLabels[0].setText(dict[events[0]])
-            valueLabels[1].setText(dict[events[1]])
-            valueLabels[2].setText(dict[events[2]])
-            valueLabels[3].setText(dict[events[3]])
-            valueLabels[4].setText(dict[events[4]])
-            valueLabels[5].setText(dict[events[5]])
+            value_labels[0].setText(dict[events[0]])
+            value_labels[1].setText(dict[events[1]])
+            value_labels[2].setText(dict[events[2]])
+            value_labels[3].setText(dict[events[3]])
+            value_labels[4].setText(dict[events[4]])
+            value_labels[5].setText(dict[events[5]])
 
 
 def printOnDisplay(str: str):
@@ -358,27 +349,27 @@ def printOnDisplay(str: str):
     M5.Display.setCursor(10,10)
     M5.Display.print(str, themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
 
-def highlightNavButton(idx: int):
+def highlight_nav_button(idx: int):
     global highlighted
     if not highlighted:
-        navButtons[idx].setColor(themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
+        nav_buttons[idx].setColor(themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
         highlighted = True
-        global onNextFrame
-        onNextFrame = lambda: unhighlightNavButton(idx)
+        global on_next_frame_cb
+        on_next_frame_cb = lambda: unhighlight_nav_button(idx)
 
 highlighted = False
 
-onNextFrame = lambda: ()
+on_next_frame_cb = lambda: ()
 
-def unhighlightNavButton(idx: int):
+def unhighlight_nav_button(idx: int):
     global highlighted
     if highlighted:
-        navButtons[idx].setColor(themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR])
+        nav_buttons[idx].setColor(themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR])
         highlighted = False
 
 current_focus = 0
 
-def switchFocus(next:bool):
+def switch_focus(next:bool):
     global current_focus
     if next:
         if current_focus == len(modes)-1:
@@ -392,30 +383,36 @@ def switchFocus(next:bool):
             current_focus = current_focus - 1
 
 def button_a_handler(state):
-    highlightNavButton(0)
-    switchFocus(False)
+    highlight_nav_button(0)
+    switch_focus(False)
 
 def button_b_handler(state):
-    highlightNavButton(1)
+    highlight_nav_button(1)
     global current_mode, theme_pointer, cfg
     for i, _ in enumerate(modes):
         if i == current_focus and i < cfg.screens_number:
             current_mode = i
             if theme_pointer != cfg.screens[i].theme:
                 theme_pointer = cfg.screens[i].theme
-                updateTheme()
+                update_theme()
         elif i == current_focus and i >= cfg.screens_number:
             if i - cfg.screens_number == 0: # first of extra screens
                 current_mode = i
-                switchTheme()
-                updateTheme()
+
+                global theme_pointer
+                if theme_pointer == len(themes)-1:
+                    theme_pointer = 0
+                else:
+                    theme_pointer = theme_pointer + 1
+
+                update_theme()
 
 
 def button_c_handler(state):
-    highlightNavButton(2)
-    switchFocus(True)
+    highlight_nav_button(2)
+    switch_focus(True)
 
-navLines = []
+nav_lines = []
 
 # =========================
 # Setup
@@ -452,7 +449,7 @@ def setup():
     modes = []
     for i in range(cfg.screens_number):
         modes.append(cfg.screens[i].header)
-    for md in extraModes:
+    for md in extra_modes:
         modes.append(md)
 
     current_mode = 0
@@ -471,8 +468,8 @@ def setup():
 
 def loop():
     M5.update()
-    global onNextFrame
-    onNextFrame()
+    global on_next_frame_cb
+    on_next_frame_cb()
 
     if BtnA.wasPressed():
         animate_nav(-1)
