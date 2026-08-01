@@ -7,7 +7,7 @@ import time
 
 MQTT_BROKER = "192.168.31.169"
 MQTT_PORT = 1883
-MQTT_TOPIC = "pc/data"
+MQTT_TOPIC = "data/pc"
 
 DELAY_UPDATE = 0.5
 GB = 1024*1024*1024

@@ -9,22 +9,22 @@
   "screen_1":{
     "header":"opi5",
     "theme":13,
-    "mqtt_topic":"opi5/data",
+    "mqtt_topic":"data/orangepi5",
     "widgets":  ["CPU", "RAM",  "TEMP",     "NET",     "SSD",  "ZRAM"],
     "events":   ["cpu", "ram",  "temp_cpu", "net_spd",  "ssd",  "zram"]
   },
   "screen_2":{
     "theme":5,
     "header":"pc",
-    "mqtt_topic":"pc/data",
+    "mqtt_topic":"data/desktop",
     "widgets":["CPU", "RAM", "TEMP", "GPU", "VRAM", "TEMP"],
     "events":["cpu","ram","temp_cpu","gpu","vram", "temp_gpu"]
   },
   "screen_3":{
     "theme":6,
     "header":"fcst",
-    "mqtt_topic":"pc/data",
-    "widgets":["DAY", "TEMP", "HIGH", "PRSR", "WIND", "LOW"],
-    "events":["cpu","ram","temp_cpu","gpu","vram", "temp_gpu"]
+    "mqtt_topic":"data/fcst",
+    "widgets":["TEMP", "COND", "HUMI", "WIND", "PRESS", "VIS"],
+    "events":["temp","cond","humi","wind","press","vis"]
   }
 }
