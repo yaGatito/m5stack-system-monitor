@@ -109,12 +109,24 @@ def parse_kv(s: str) -> dict:
     return dict(pair.split(":", 1) for pair in s.split(","))
 
 def on_message(topic, msg):
-    global cfg
+    if isinstance(topic, bytes):
+        topic = topic.decode('utf-8')
+
+    global cfg, cached_data, cached_titles
+    dict = parse_kv(msg)
+
     for i in range(cfg.screens_number):
-        cfg_topic = str(cfg.screens[i].mqtt_topic)
-        if topic == cfg_topic.encode('utf-8') and current_mode == i:
-            dict = parse_kv(msg)
-            update(topic, dict, cfg.screens[i].widgets, cfg.screens[i].events)
+        if cfg.screens[i].mqtt_topic == topic:
+            cached_titles[topic] = cfg.screens[i].widgets
+            data = []
+            for j in range(6):
+                data.append(dict[cfg.screens[i].events[j]])
+            # print("Cached data for topic:", topic, "->", data)
+            cached_data[topic] = data
+        
+        if current_mode < cfg.screens_number:
+            update(topic, dict, cfg.screens[current_mode].widgets, cfg.screens[current_mode].events)
+
 
 def connect_mqtt():
     global cfg
@@ -256,7 +268,7 @@ theme_pointer = 13
 previous_theme = 0
 
 
-def buildWidgets(titles: list[str]):
+def build_widgets(titles: list[str]):
     global cfg, theme_pointer
     x_multiplier = 0
     y_multiplier = 0
@@ -304,6 +316,7 @@ def buildWidgets(titles: list[str]):
 def update_theme():
     global theme_pointer
 
+
     Widgets.fillScreen(themes[theme_pointer][IDX_BACKGROUND_COLOR])
 
     for i, widget in enumerate(widgets):
@@ -319,31 +332,54 @@ def update_theme():
         button.setColor(themes[theme_pointer][IDX_NAV_TEXT_COLOR], themes[theme_pointer][IDX_NAV_TEXT_COLOR])
 
 
+# =========================
+# Global cache variables
+# =========================
+
+last_update_time = 0
+CACHE_TIMEOUT = 10  # 5 minutes in seconds
+cached_titles = {}  # topic -> titles
+cached_data = {}    # topic -> values
+
+
+
+def populate_with_cache():
+    global cached_titles,cached_data,cfg
+
+    topic = cfg.screens[current_mode].mqtt_topic
+    titles = cached_titles[topic]
+    values =  cached_data[topic]
+
+    for i in range(6):
+        widgets[i].setText(titles[i])
+        value_labels[i].setText(values[i])
+
+
 def update(topic:str, dict: dict, titles:list, events: list):
+    global cached_data
+
     if len(value_labels) == 0:
         return
- 
+
     # same part between modes
-    global cfg
-    for i in range(cfg.screens_number):
-        cfg_topic = cfg.screens[i].mqtt_topic
-        if topic == cfg_topic.encode('utf-8'):
-            widgets[0].setText(titles[0])
-            widgets[1].setText(titles[1])
-            widgets[2].setText(titles[2])
-            widgets[3].setText(titles[3])
-            widgets[4].setText(titles[4])
-            widgets[5].setText(titles[5])
 
-            value_labels[0].setText(dict[events[0]])
-            value_labels[1].setText(dict[events[1]])
-            value_labels[2].setText(dict[events[2]])
-            value_labels[3].setText(dict[events[3]])
-            value_labels[4].setText(dict[events[4]])
-            value_labels[5].setText(dict[events[5]])
+    if current_mode < cfg.screens_number and topic == cfg.screens[current_mode].mqtt_topic:
+        widgets[0].setText(titles[0])
+        widgets[1].setText(titles[1])
+        widgets[2].setText(titles[2])
+        widgets[3].setText(titles[3])
+        widgets[4].setText(titles[4])
+        widgets[5].setText(titles[5])
+
+        value_labels[0].setText(dict[events[0]])
+        value_labels[1].setText(dict[events[1]])
+        value_labels[2].setText(dict[events[2]])
+        value_labels[3].setText(dict[events[3]])
+        value_labels[4].setText(dict[events[4]])
+        value_labels[5].setText(dict[events[5]])
 
 
-def printOnDisplay(str: str):
+def print_on_display(str: str):
     M5.Display.fillScreen(themes[theme_pointer][IDX_BACKGROUND_COLOR])
     M5.Display.setCursor(10,10)
     M5.Display.print(str, themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
@@ -394,6 +430,7 @@ def button_b_handler(state):
             if theme_pointer != cfg.screens[i].theme:
                 theme_pointer = cfg.screens[i].theme
                 update_theme()
+            populate_with_cache()
         elif i == current_focus and i >= cfg.screens_number:
             if i - cfg.screens_number == 0: # first of extra screens
                 current_mode = i
@@ -428,7 +465,7 @@ def setup():
     M5.begin()
     global cfg, current_mode, current_focus, mqtt, modes
 
-    printOnDisplay("Reading config...")
+    print_on_display("Reading config...")
     cfg = AppConfig()
     cfg.load_from_file("/sd/conf.json")
 
@@ -437,13 +474,13 @@ def setup():
     print("MQTT host:", cfg.mqtt_broker_host)
     print("MQTT port:", cfg.mqtt_broker_port)
 
-    printOnDisplay("Connecting Wi-Fi...", )
+    print_on_display("Connecting Wi-Fi...", )
     connect_wifi()
 
-    printOnDisplay("Connecting MQTT...")
+    print_on_display("Connecting MQTT...")
 
     mqtt = connect_mqtt()
-    printOnDisplay("MQTT CONNECTED")
+    print_on_display("MQTT CONNECTED")
 
     modes = []
     for i in range(cfg.screens_number):
@@ -454,7 +491,7 @@ def setup():
     current_mode = 0
     current_focus = 0
 
-    buildWidgets(cfg.screens[0].widgets)
+    build_widgets(cfg.screens[0].widgets)
 
     BtnA.setCallback(type=BtnA.CB_TYPE.WAS_CLICKED,cb=button_a_handler)
     BtnB.setCallback(type=BtnB.CB_TYPE.WAS_CLICKED,cb=button_b_handler)
@@ -477,6 +514,7 @@ def loop():
         animate_nav(1)
 
     mqtt.check_msg()
+
     time.sleep(0.1)
 
 # =========================
