@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"runtime"
 	"sync"
 	"system-agent/modules"
 	"time"
@@ -38,7 +37,6 @@ func init() {
 		Logger: log.Default(),
 	}
 
-	logger.Log("system:" + runtime.GOOS)
 	sensors, _ := sensors.TemperaturesWithContext(context.Background())
 	for _, sensor := range sensors {
 		logger.Log(sensor.String())
@@ -66,7 +64,7 @@ func NewAgent(logger *modules.Logger, broker string, keepAlive time.Duration) *A
 		logger:        logger,
 		mqttClient: mqtt.NewClient(mqtt.NewClientOptions().
 			AddBroker(broker).
-			SetCleanSession(false).
+			SetCleanSession(true).
 			SetKeepAlive(keepAlive)),
 	}
 
