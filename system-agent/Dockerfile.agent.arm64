@@ -1,0 +1,13 @@
+FROM golang:1.26 AS builder
+WORKDIR /app
+COPY . .
+
+RUN go mod download
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags "-s -w" -o /bin/agent-service ./cmd
+
+FROM debian:bookworm-slim
+WORKDIR /app
+
+COPY --from=builder /bin/agent-service .
+
+CMD ["./agent-service"]
