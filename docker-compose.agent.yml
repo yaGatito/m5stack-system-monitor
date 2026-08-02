@@ -3,6 +3,8 @@ services:
     image: yagatito/system-agent-${PLATFORM_ARCH}:1.0
     container_name: system-agent
     restart: unless-stopped
+    env_file:
+      - .env
     privileged: true
     network_mode: host
     environment:
