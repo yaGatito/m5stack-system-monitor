@@ -8,12 +8,6 @@ services:
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
-    healthcheck:
-      test: ["CMD-SHELL", "timeout 5 mosquitto_sub -t '$$aws' -C 1 || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
 
   system-agent:
     image: yagatito/system-agent-${PLATFORM_ARCH}:1.0
