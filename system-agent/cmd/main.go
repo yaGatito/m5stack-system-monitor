@@ -18,7 +18,16 @@ const (
 	MQTT_ORANGEPI5_TOPIC = "data/orangepi5"
 	MQTT_FCST_TOPIC      = "data/fcst"
 	MQTT_STATUS_TOPIC    = "m5stack/status"
-	MQTT_BROKER          = "tcp://192.168.31.169:1883"
+
+	DEVICE_AGENT_ENV         = "DEVICE_AGENT"
+	DEVICE_AGENT_ORANGE_PI_5 = "opi5"
+	DEVICE_AGENT_ODESKTOP    = "pc"
+	LOCATION_LAT_ENV         = "LOCATION_LAT"
+	LOCATION_LON_ENV         = "LOCATION_LON"
+	WEATHER_TOKEN_ENV        = "WEATHER_TOKEN"
+	WEATHER_PLUGIN_ENV       = "WEATHER_PLUGIN"
+	MQTT_BROKER_ENV          = "MQTT_BROKER"
+
 	UPDATE_DELAY         = time.Second
 	UPDATE_WEATHER_DELAY = time.Minute * 5
 	KEEP_ALIVE           = time.Second * 10
@@ -35,8 +44,6 @@ func init() {
 		logger.Log(sensor.String())
 	}
 }
-
-const DEVICE_AGENT = "DEVICE_AGENT"
 
 var logger *modules.Logger
 
@@ -57,10 +64,10 @@ func NewAgent(logger *modules.Logger, broker string, keepAlive time.Duration) *A
 	a := Agent{
 		statusChannel: make(chan bool, 1),
 		logger:        logger,
-		mqttClient: mqtt.NewClient(
-			mqtt.NewClientOptions().AddBroker(broker).
-				SetCleanSession(true).
-				SetKeepAlive(keepAlive)),
+		mqttClient: mqtt.NewClient(mqtt.NewClientOptions().
+			AddBroker(broker).
+			SetCleanSession(true).
+			SetKeepAlive(keepAlive)),
 	}
 
 	t1 := a.mqttClient.Connect()
@@ -119,21 +126,22 @@ func (a *Agent) Publish(topic, message string) {
 }
 
 func main() {
-	agentType := os.Getenv(DEVICE_AGENT)
-	weatherEnabled := os.Getenv("WEATHER_PLUGIN") == "true"
-	coordsLat := os.Getenv("LOCATION_LAT")
-	coordsLon := os.Getenv("LOCATION_LON")
-	weatherToken := os.Getenv("WEATHER_TOKEN")
+	agentType := os.Getenv(DEVICE_AGENT_ENV)
+	weatherEnabled := os.Getenv(WEATHER_PLUGIN_ENV) == "true"
+	coordsLat := os.Getenv(LOCATION_LAT_ENV)
+	coordsLon := os.Getenv(LOCATION_LON_ENV)
+	weatherToken := os.Getenv(WEATHER_TOKEN_ENV)
+	mqttBroker := os.Getenv(MQTT_BROKER_ENV)
 
 	logger.Log("Connecting to MQTT broker...")
 
-	agent := NewAgent(logger, MQTT_BROKER, KEEP_ALIVE)
+	agent := NewAgent(logger, mqttBroker, KEEP_ALIVE)
 	agent.Register(MQTT_STATUS_TOPIC, agent.DeviceStatusHandler)
 
 	wg := sync.WaitGroup{}
 
 	// --- Desktop PC ---
-	if agentType == "pc" {
+	if agentType == DEVICE_AGENT_ODESKTOP {
 		wg.Add(1)
 		go func() {
 			logger.Log("Waiting for signal to sent desktop updates..")
@@ -165,7 +173,7 @@ func main() {
 	}
 
 	// --- OrangePi5 ---
-	if agentType == "opi5" {
+	if agentType == DEVICE_AGENT_ORANGE_PI_5 {
 		wg.Add(1)
 		go func() {
 			logger.Log("Waiting for signal to sent opi5 updates..")

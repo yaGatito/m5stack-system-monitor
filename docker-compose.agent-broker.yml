@@ -9,14 +9,15 @@ services:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
 
-  system-agent-amd64:
-    depends_on: 
-      - mosquitto
-    image: yagatito/system-agent-amd64:1.0
+  system-agent:
+    image: yagatito/system-agent-${PLATFORM_ARCH}:1.0
     container_name: system-agent
     restart: unless-stopped
     privileged: true
     network_mode: host
+    depends_on: 
+      mosquitto:
+        condition: service_started
     environment:
       DEVICE_AGENT: "${DEVICE_AGENT}"
       LOCATION_LAT: "${LOCATION_LAT}"
@@ -27,10 +28,3 @@ services:
       - /sys:/sys:ro
       - /proc:/proc:ro
       - /dev:/dev
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
