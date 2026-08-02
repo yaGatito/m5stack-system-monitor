@@ -12,9 +12,11 @@ services:
       - ./mosquitto/data:/mosquitto/data
 
   system-agent-arm64:
-    build:
-      context: ./system-agent
-      dockerfile: ./Dockerfile.agent.arm64
+    image: yagatito/system-agent-arm64:1.0
+    container_name: system-agent
+    # build:
+    #   context: ./system-agent
+    #   dockerfile: ./Dockerfile.agent.arm64
     privileged: true
     network_mode: host
     environment:
