@@ -1,3 +1,5 @@
+//go:build nvidia
+
 package modules
 
 import (
