@@ -18,8 +18,11 @@ const (
 	MQTT_DESKTOP_TOPIC   = "data/desktop"
 	MQTT_ORANGEPI5_TOPIC = "data/orangepi5"
 	MQTT_FCST_TOPIC      = "data/fcst"
+	MQTT_STATUS_TOPIC    = "m5stack/status"
 	MQTT_BROKER          = "tcp://192.168.31.169:1883"
-	UPDATE_DELAY         = time.Millisecond * 500
+	UPDATE_DELAY         = time.Second
+	UPDATE_WEATHER_DELAY = time.Minute * 5
+	KEEP_ALIVE           = time.Second * 10
 )
 
 func init() {
@@ -29,93 +32,159 @@ func init() {
 
 	logger.Log("system:" + runtime.GOOS)
 	sensors, _ := sensors.TemperaturesWithContext(context.Background())
-	sync.OnceFunc(func() {
-		for _, sensor := range sensors {
-			logger.Log(sensor.String())
-		}
-	})()
+	for _, sensor := range sensors {
+		logger.Log(sensor.String())
+	}
 }
 
 const DEVICE_AGENT = "DEVICE_AGENT"
 
 var logger *modules.Logger
 
+type Agent struct {
+	statusChannel chan bool
+	logger        *modules.Logger
+
+	mqttLock   sync.Mutex
+	mqttClient mqtt.Client
+
+	handler mqtt.MessageHandler
+
+	status      bool
+	statusRLock sync.RWMutex
+}
+
+func NewAgent(logger *modules.Logger, broker string, keepAlive time.Duration) *Agent {
+	a := Agent{
+		statusChannel: make(chan bool, 1),
+		logger:        logger,
+		mqttClient: mqtt.NewClient(
+			mqtt.NewClientOptions().AddBroker(broker).
+				SetCleanSession(true).
+				SetKeepAlive(keepAlive)),
+	}
+
+	t1 := a.mqttClient.Connect()
+	t1.Wait()
+
+	return &a
+}
+
+func (a *Agent) Register(topic string, handler mqtt.MessageHandler) {
+	logger.Log("Registered " + topic)
+	t2 := a.mqttClient.Subscribe(MQTT_STATUS_TOPIC, 0, handler)
+	t2.Wait()
+}
+
+func (a *Agent) DeviceStatusHandler(client mqtt.Client, msg mqtt.Message) {
+	if msg.Topic() == MQTT_STATUS_TOPIC {
+		logger.Log("Device status received: " + string(msg.Payload()))
+		a.statusChannel <- string(msg.Payload()) == "online"
+	}
+}
+
+func (a *Agent) GetActualDeviceStatus() bool {
+	a.statusRLock.RLock()
+	defer a.statusRLock.RUnlock()
+	return a.status
+}
+
+func (a *Agent) SetActualDeviceStatus(updatedStatus bool) {
+	a.statusRLock.Lock()
+	defer a.statusRLock.Unlock()
+	a.status = updatedStatus
+}
+
+func (a *Agent) Publish(topic, message string) {
+	a.mqttLock.Lock()
+	logger.Log("Publishing message in topic: " + MQTT_DESKTOP_TOPIC)
+	t1 := a.mqttClient.Publish(MQTT_DESKTOP_TOPIC, 0, true, message)
+	t1.Wait()
+	a.mqttLock.Unlock()
+}
+
 func main() {
 	agentType := os.Getenv(DEVICE_AGENT)
-	opts := mqtt.NewClientOptions()
-	opts.AddBroker(MQTT_BROKER)
-	mqtt := mqtt.NewClient(opts)
-	mqttLock := sync.Mutex{}
-
-	logger.Log("Connecting to MQTT broker...")
-	_ = mqtt.Connect()
-	logger.Log("Connected")
-
 	weatherEnabled := os.Getenv("WEATHER_PLUGIN") == "true"
 	coordsLat := os.Getenv("LOCATION_LAT")
 	coordsLon := os.Getenv("LOCATION_LON")
 	weatherToken := os.Getenv("WEATHER_TOKEN")
 
+	logger.Log("Connecting to MQTT broker...")
+
+	agent := NewAgent(logger, MQTT_BROKER, KEEP_ALIVE)
+	agent.Register(MQTT_STATUS_TOPIC, agent.DeviceStatusHandler)
+
 	wg := sync.WaitGroup{}
-	// logs := make(chan string, 100)
 
-	if weatherEnabled {
-		wg.Add(1)
-		go func() {
+	wg.Add(1)
+	go func() {
+		for {
+			logger.Log("Waiting for device status signal..")
+
 			for {
-				weatherStats := modules.GetWeather(logger, coordsLat, coordsLon, weatherToken)
-
-				mqttLock.Lock()
-				_ = mqtt.Publish(MQTT_FCST_TOPIC, 0, true, weatherStats)
-				mqttLock.Unlock()
-
-				// _ = mqtt.Publish(MQTT_ORANGEPI5_TOPIC, 0, true,
-				// 		fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,net_spd:%.1fM,ssd:%.1fG,zram:%.1fG",
-				// 			opistats.CpuUtilPerc, opistats.RamGb, opistats.TempCpuCels, opistats.NetSpd, opistats.SsdPerc, opistats.Zram))
-
-				time.Sleep(time.Minute)
+				select {
+				case receivedStatus := <-agent.statusChannel:
+					agent.SetActualDeviceStatus(receivedStatus)
+				default:
+					time.Sleep(1 * time.Second)
+				}
 			}
-		}()
-	}
+		}
+	}()
 
-	if agentType == "opi5" {
-		wg.Add(1)
-		go func() {
-			for {
-				opistats := modules.GetSystemOrangePi5Stats(logger)
-				message := fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,net_spd:%.1fM,ssd:%.1fG,zram:%.1fG",
-					opistats.CpuUtilPerc, opistats.RamGb, opistats.TempCpuCels, opistats.NetSpd, opistats.SsdPerc, opistats.Zram)
-				// logger.Logf("OrangePi5 stats published: %s", message)
-
-				mqttLock.Lock()
-				_ = mqtt.Publish(MQTT_ORANGEPI5_TOPIC, 0, true, message)
-				mqttLock.Unlock()
-
-				time.Sleep(time.Second)
-			}
-		}()
-	}
-
+	// --- Desktop PC ---
 	if agentType == "pc" {
 		wg.Add(1)
 		go func() {
+			logger.Log("Waiting for signal to sent desktop updates..")
+
 			for {
-				pcstats := modules.GetSystemDesktopStats(logger)
-				message := fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,gpu:%d%%,vram:%.1fG,temp_gpu:%d°",
-					pcstats.CpuUtilPerc, pcstats.RamGb, pcstats.TempCpuCels, pcstats.GpuUtilPerc, pcstats.VramGb, pcstats.TempGpuCels)
-				// logger.Logf("Desktop stats published: %s", message)
+				if agent.GetActualDeviceStatus() {
+					pcstats := modules.GetSystemDesktopStats(logger)
+					message := fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,gpu:%d%%,vram:%.1fG,temp_gpu:%d°",
+						pcstats.CpuUtilPerc, pcstats.RamGb, pcstats.TempCpuCels, pcstats.GpuUtilPerc, pcstats.VramGb, pcstats.TempGpuCels)
+					agent.Publish(MQTT_DESKTOP_TOPIC, message)
+				}
+				time.Sleep(UPDATE_DELAY)
+			}
+		}()
+	}
 
-				mqttLock.Lock()
-				_ = mqtt.Publish(MQTT_DESKTOP_TOPIC, 0, true, message)
-				mqttLock.Unlock()
+	// --- Weather plugin ---
+	if weatherEnabled {
+		wg.Add(1)
+		go func() {
+			logger.Log("Waiting for signal to sent weather updates..")
 
-				// if received topic:"dev-id/status",message:"offline" then no sent updates while no "dev-id/status" message:"online"
+			for {
+				if agent.GetActualDeviceStatus() {
+					logger.Log("received 'online' status")
+					weatherStats := modules.GetWeather(logger, coordsLat, coordsLon, weatherToken)
+					agent.Publish(MQTT_FCST_TOPIC, weatherStats)
+				}
+				time.Sleep(UPDATE_WEATHER_DELAY)
+			}
+		}()
+	}
 
-				time.Sleep(time.Second)
+	// --- OrangePi5 ---
+	if agentType == "opi5" {
+		wg.Add(1)
+		go func() {
+			logger.Log("Waiting for signal to sent opi5 updates..")
+
+			for {
+				if agent.GetActualDeviceStatus() {
+					opistats := modules.GetSystemOrangePi5Stats(logger)
+					message := fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,net_spd:%.1fM,ssd:%.1fG,zram:%.1fG",
+						opistats.CpuUtilPerc, opistats.RamGb, opistats.TempCpuCels, opistats.NetSpd, opistats.SsdPerc, opistats.Zram)
+					agent.Publish(MQTT_ORANGEPI5_TOPIC, message)
+				}
+				time.Sleep(UPDATE_DELAY)
 			}
 		}()
 	}
 
 	wg.Wait()
-
 }

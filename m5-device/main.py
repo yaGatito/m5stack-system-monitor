@@ -102,6 +102,7 @@ current_mode = 0
 previous_mode = 1
 
 MQTT_CLIENT_ID = b"m5stack-01"
+MQTT_STATUS_TOPIC = "m5stack/status"
 
 def parse_kv(s: str) -> dict:
     if isinstance(s, bytes):
@@ -132,9 +133,15 @@ def connect_mqtt():
     global cfg
     print("SSID:", cfg.wifi_ssid)
 
-    client = MQTTClient(MQTT_CLIENT_ID, cfg.mqtt_broker_host, port=cfg.mqtt_broker_port)
+    client = MQTTClient(MQTT_CLIENT_ID, cfg.mqtt_broker_host, port=cfg.mqtt_broker_port, keepalive=10)
     client.set_callback(on_message)
+
+    client.set_last_will(MQTT_STATUS_TOPIC, "offline", retain=True, qos=0)
     client.connect()
+
+    time.sleep(0.5)
+    client.publish(MQTT_STATUS_TOPIC, "online")
+    print("Sent 'online' connected to", MQTT_STATUS_TOPIC)
 
     for i in range(cfg.screens_number):
         client.subscribe(cfg.screens[i].mqtt_topic)
@@ -143,7 +150,7 @@ def connect_mqtt():
 
     return client
 
-
+ 
 # =========================
 # ANIMATIONS
 # =========================
@@ -316,7 +323,6 @@ def build_widgets(titles: list[str]):
 def update_theme():
     global theme_pointer
 
-
     Widgets.fillScreen(themes[theme_pointer][IDX_BACKGROUND_COLOR])
 
     for i, widget in enumerate(widgets):
@@ -340,8 +346,6 @@ last_update_time = 0
 CACHE_TIMEOUT = 10  # 5 minutes in seconds
 cached_titles = {}  # topic -> titles
 cached_data = {}    # topic -> values
-
-
 
 def populate_with_cache():
     global cached_titles,cached_data,cfg
@@ -463,12 +467,11 @@ nav_lines = []
 
 def setup():
     M5.begin()
-    global cfg, current_mode, current_focus, mqtt, modes
+    global cfg, current_mode, mqtt, modes
 
     print_on_display("Reading config...")
     cfg = AppConfig()
     cfg.load_from_file("/sd/conf.json")
-
 
     print("SSID:", cfg.wifi_ssid)
     print("MQTT host:", cfg.mqtt_broker_host)
@@ -478,7 +481,6 @@ def setup():
     connect_wifi()
 
     print_on_display("Connecting MQTT...")
-
     mqtt = connect_mqtt()
     print_on_display("MQTT CONNECTED")
 
@@ -488,10 +490,7 @@ def setup():
     for md in extra_modes:
         modes.append(md)
 
-    current_mode = 0
-    current_focus = 0
-
-    build_widgets(cfg.screens[0].widgets)
+    build_widgets(cfg.screens[current_mode].widgets)
 
     BtnA.setCallback(type=BtnA.CB_TYPE.WAS_CLICKED,cb=button_a_handler)
     BtnB.setCallback(type=BtnB.CB_TYPE.WAS_CLICKED,cb=button_b_handler)
@@ -501,6 +500,9 @@ def setup():
 # =========================
 # Main loop
 # =========================
+
+PING_DELAY = 9 #seconds
+update_time = 0
 
 def loop():
     M5.update()
@@ -514,6 +516,11 @@ def loop():
         animate_nav(1)
 
     mqtt.check_msg()
+
+    global update_time
+    if (time.time_ns() - update_time) > PING_DELAY * 1_000_000_000:
+        mqtt.ping()
+        update_time = time.time_ns()
 
     time.sleep(0.1)
 

@@ -48,15 +48,12 @@ func GetWeather(log *Logger, lat, lon, token string) string {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
-	weather, err := fetchWeather(log, token, lat, lon)
+	weather, err := fetchWeather(token, lat, lon)
 	if err != nil {
-		log.Logf("Failed to fetch weather: %v", err)
+		log.Logf("Failed to fetch weather: %v\n", err)
 	}
 
 	payload := createWeatherPayload(weather)
-
-	// _ = client.Publish("data/fcst", 0, true, payload)
-	log.Logf("Weather published for %s,%s: %s", lat, lon, payload)
 
 	return payload
 }
@@ -104,7 +101,7 @@ func createWeatherPayload(weather WeatherData) string {
 }
 
 // fetchWeather calls OpenWeatherMap 2.5 API
-func fetchWeather(log *Logger, token, lat, lon string) (WeatherData, error) {
+func fetchWeather(token, lat, lon string) (WeatherData, error) {
 	url := fmt.Sprintf(
 		"https://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&units=metric&appid=%s",
 		url.QueryEscape(lat), url.QueryEscape(lon), token)
