@@ -97,8 +97,8 @@ func (a *Agent) SetActualDeviceStatus(updatedStatus bool) {
 
 func (a *Agent) Publish(topic, message string) {
 	a.mqttLock.Lock()
-	logger.Log("Publishing message in topic: " + MQTT_DESKTOP_TOPIC)
-	t1 := a.mqttClient.Publish(MQTT_DESKTOP_TOPIC, 0, true, message)
+	logger.Log("Publishing message in topic: " + topic)
+	t1 := a.mqttClient.Publish(topic, 0, true, message)
 	t1.Wait()
 	a.mqttLock.Unlock()
 }
