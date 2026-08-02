@@ -19,7 +19,7 @@ services:
     network_mode: host
     depends_on: 
       mosquitto:
-        condition: service_healthy
+        condition: service_started
     environment:
       DEVICE_AGENT: "${DEVICE_AGENT}"
       LOCATION_LAT: "${LOCATION_LAT}"
