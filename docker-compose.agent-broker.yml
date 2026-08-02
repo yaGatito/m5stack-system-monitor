@@ -24,6 +24,7 @@ services:
       LOCATION_LON: "${LOCATION_LON}"
       WEATHER_TOKEN: "${WEATHER_TOKEN}"
       WEATHER_PLUGIN: "${WEATHER_PLUGIN}"
+      MQTT_BROKER: "${MQTT_BROKER}"
     volumes:
       - /sys:/sys:ro
       - /proc:/proc:ro

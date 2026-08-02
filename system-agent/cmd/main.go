@@ -66,7 +66,7 @@ func NewAgent(logger *modules.Logger, broker string, keepAlive time.Duration) *A
 		logger:        logger,
 		mqttClient: mqtt.NewClient(mqtt.NewClientOptions().
 			AddBroker(broker).
-			SetCleanSession(true).
+			SetCleanSession(false).
 			SetKeepAlive(keepAlive)),
 	}
 
