@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -74,6 +73,22 @@ func (a *Agent) Register(topic string, handler mqtt.MessageHandler) {
 	logger.Log("Registered " + topic)
 	t2 := a.mqttClient.Subscribe(MQTT_STATUS_TOPIC, 0, handler)
 	t2.Wait()
+
+	go func() {
+		for {
+			logger.Log("Waiting for device status signal..")
+
+			for {
+				select {
+				case receivedStatus := <-a.statusChannel:
+					a.SetActualDeviceStatus(receivedStatus)
+					logger.Log("Status updated")
+				default:
+					time.Sleep(1 * time.Second)
+				}
+			}
+		}
+	}()
 }
 
 func (a *Agent) DeviceStatusHandler(client mqtt.Client, msg mqtt.Message) {
@@ -117,22 +132,6 @@ func main() {
 
 	wg := sync.WaitGroup{}
 
-	wg.Add(1)
-	go func() {
-		for {
-			logger.Log("Waiting for device status signal..")
-
-			for {
-				select {
-				case receivedStatus := <-agent.statusChannel:
-					agent.SetActualDeviceStatus(receivedStatus)
-				default:
-					time.Sleep(1 * time.Second)
-				}
-			}
-		}
-	}()
-
 	// --- Desktop PC ---
 	if agentType == "pc" {
 		wg.Add(1)
@@ -141,9 +140,7 @@ func main() {
 
 			for {
 				if agent.GetActualDeviceStatus() {
-					pcstats := modules.GetSystemDesktopStats(logger)
-					message := fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,gpu:%d%%,vram:%.1fG,temp_gpu:%d°",
-						pcstats.CpuUtilPerc, pcstats.RamGb, pcstats.TempCpuCels, pcstats.GpuUtilPerc, pcstats.VramGb, pcstats.TempGpuCels)
+					message := modules.GetSystemDesktopStats(logger)
 					agent.Publish(MQTT_DESKTOP_TOPIC, message)
 				}
 				time.Sleep(UPDATE_DELAY)
@@ -159,9 +156,8 @@ func main() {
 
 			for {
 				if agent.GetActualDeviceStatus() {
-					logger.Log("received 'online' status")
-					weatherStats := modules.GetWeather(logger, coordsLat, coordsLon, weatherToken)
-					agent.Publish(MQTT_FCST_TOPIC, weatherStats)
+					message := modules.GetWeather(logger, coordsLat, coordsLon, weatherToken)
+					agent.Publish(MQTT_FCST_TOPIC, message)
 				}
 				time.Sleep(UPDATE_WEATHER_DELAY)
 			}
@@ -176,9 +172,7 @@ func main() {
 
 			for {
 				if agent.GetActualDeviceStatus() {
-					opistats := modules.GetSystemOrangePi5Stats(logger)
-					message := fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,net_spd:%.1fM,ssd:%.1fG,zram:%.1fG",
-						opistats.CpuUtilPerc, opistats.RamGb, opistats.TempCpuCels, opistats.NetSpd, opistats.SsdPerc, opistats.Zram)
+					message := modules.GetSystemOrangePi5Stats(logger)
 					agent.Publish(MQTT_ORANGEPI5_TOPIC, message)
 				}
 				time.Sleep(UPDATE_DELAY)

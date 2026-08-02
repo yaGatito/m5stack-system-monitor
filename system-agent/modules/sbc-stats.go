@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
@@ -23,7 +24,7 @@ type OrangePi5Stats struct {
 
 const ORANGEPI5_CPU_SENSOR_KEY = "soc_thermal"
 
-func GetSystemOrangePi5Stats(log *Logger) OrangePi5Stats {
+func GetSystemOrangePi5Stats(log *Logger) string {
 	cpu_perc, err := cpu.Percent(0, false)
 	if err != nil {
 		log.Logf("Unable to get temperature: %v", err)
@@ -60,13 +61,14 @@ func GetSystemOrangePi5Stats(log *Logger) OrangePi5Stats {
 		log.Logf("Unable to get swap info: %v", err)
 	}
 
-	return OrangePi5Stats{
-		CpuUtilPerc: cpu_perc[0] * 100,
-		RamGb:       float64(ram.Used) / (1024 * 1024 * 1024),
-		TempCpuCels: cpuTempCelsius,
+	message := fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,net_spd:%.1fM,ssd:%.1fG,zram:%.1fG",
+		cpu_perc[0]*100, float64(ram.Used)/(1024*1024*1024), cpuTempCelsius, float64(netinf[0].BytesRecv)/(1024*1024), float64(diskUsage.Used)/(1024*1024*1024), float64(swp.Used)/(1024*1024*1024))
+	// 		CpuUtilPerc: cpu_perc[0] * 100,
+	// 		RamGb:       float64(ram.Used) / (1024 * 1024 * 1024),
+	// 		TempCpuCels: cpuTempCelsius,
 
-		NetSpd:  float64(netinf[0].BytesRecv) / (1024 * 1024),
-		Zram:    float64(swp.Used) / (1024 * 1024 * 1024),
-		SsdPerc: float64(diskUsage.Used) / (1024 * 1024 * 1024),
-	}
+	// 		NetSpd:  float64(netinf[0].BytesRecv) / (1024 * 1024),
+	// 		Zram:    float64(swp.Used) / (1024 * 1024 * 1024),
+	// 		SsdPerc: float64(diskUsage.Used) / (1024 * 1024 * 1024),
+	return message
 }

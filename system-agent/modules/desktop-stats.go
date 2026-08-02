@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -28,7 +29,7 @@ const (
 	DESKTOP_CPU_SENSOR_KEY            = "k10temp_tctl"
 )
 
-func GetSystemDesktopStats(log *Logger) DesktopStats {
+func GetSystemDesktopStats(log *Logger) string {
 	cpu_perc, err := cpu.Percent(0, false)
 	if err != nil {
 		log.Logf("Unable to get temperature: %v", err)
@@ -81,13 +82,6 @@ func GetSystemDesktopStats(log *Logger) DesktopStats {
 		log.Logf("Unable to get gpuTempCelsius: %v", err)
 	}
 
-	return DesktopStats{
-		CpuUtilPerc: cpu_perc[0] * 100,
-		RamGb:       float64(ram.Used) / (1024 * 1024 * 1024),
-		TempCpuCels: cpuTempCelsius,
-
-		GpuUtilPerc: gpuUtilization.Gpu,
-		VramGb:      float64(vram.Used) / (1024 * 1024 * 1024),
-		TempGpuCels: gpuTempCelsius,
-	}
+	return fmt.Sprintf("cpu:%.0f%%,ram:%.1fG,temp_cpu:%.0f°,gpu:%d%%,vram:%.1fG,temp_gpu:%d°",
+		cpu_perc[0]*100, float64(ram.Used)/(1024*1024*1024), cpuTempCelsius, gpuUtilization.Gpu, float64(vram.Used)/(1024*1024*1024), gpuTempCelsius)
 }
