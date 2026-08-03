@@ -4,7 +4,9 @@ import (
 	"context"
 	"log"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"system-agent/modules"
 	"time"
 
@@ -80,6 +82,9 @@ func (a *Agent) Register(topic string, handler mqtt.MessageHandler) {
 	t2.Wait()
 
 	go func() {
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
 		for {
 			logger.Log("Waiting for device status signal..")
 
@@ -88,6 +93,12 @@ func (a *Agent) Register(topic string, handler mqtt.MessageHandler) {
 				case receivedStatus := <-a.statusChannel:
 					a.SetActualDeviceStatus(receivedStatus)
 					logger.Log("Status updated")
+				case _ = <-quit:
+					logger.Log("Shutdown signal received, starting graceful shutdown...")
+					a.mqttLock.Lock()
+					a.mqttClient.Disconnect(1)
+					a.mqttLock.Unlock()
+
 				default:
 					time.Sleep(1 * time.Second)
 				}
@@ -131,7 +142,7 @@ func main() {
 	weatherToken := os.Getenv(WEATHER_TOKEN_ENV)
 	mqttBroker := os.Getenv(MQTT_BROKER_ENV)
 
-	logger.Log("Connecting to MQTT broker...")
+	logger.Log("Connecting to MQTT broker: " + mqttBroker)
 
 	agent := NewAgent(logger, mqttBroker, KEEP_ALIVE)
 	agent.Register(MQTT_STATUS_TOPIC, agent.DeviceStatusHandler)

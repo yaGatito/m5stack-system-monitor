@@ -10,4 +10,4 @@ WORKDIR /app
 
 COPY --from=builder /bin/agent-service .
 
-CMD ["./agent-service"]
+CMD sh -c "sleep 15 && ./agent-service"
