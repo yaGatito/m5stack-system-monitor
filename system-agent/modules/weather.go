@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const EVENT_KEYS = "temp,cond,humi,wind,press,vis"
+const WEATHER_EVENT_KEYS = "temp,cond,humi,wind,press,vis"
 
 // Weather agent: fetches weather data and publishes to MQTT
 type WeatherData struct {
@@ -26,58 +26,52 @@ type WeatherData struct {
 }
 
 func GetWeather(log *util.Logger, lat, lon, token string) string {
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
 	weather, err := fetchWeather(token, lat, lon)
 	if err != nil {
 		log.Logf("Failed to fetch weather: %v\n", err)
 	}
-
-	payload := createWeatherPayload(weather)
-
-	return payload
+	return createWeatherPayload(weather)
 }
 
-var once sync.Once
-var events []string
+var weatherEvents []string
 
 func createWeatherPayload(weather WeatherData) string {
-	once.Do(func() {
-		events = strings.Split(EVENT_KEYS, ",")
-	})
+	sync.OnceFunc(func() {
+		weatherEvents = strings.Split(WEATHER_EVENT_KEYS, ",")
+	})()
+
 	sb := strings.Builder{}
 
-	sb.WriteString(events[0])
+	sb.WriteString(weatherEvents[0])
 	sb.WriteString(":")
 	sb.WriteString(strconv.FormatFloat(weather.Temperature, 'f', 1, 64))
-	sb.WriteString("°")
-	sb.WriteString(",")
+	sb.WriteString("°,")
 
-	sb.WriteString(events[1])
+	sb.WriteString(weatherEvents[1])
 	sb.WriteString(":")
 	sb.WriteString(strings.ReplaceAll(weather.Condition, " ", "_"))
 	sb.WriteString(",")
 
-	sb.WriteString(events[2])
+	sb.WriteString(weatherEvents[2])
 	sb.WriteString(":")
 	sb.WriteString(strconv.FormatFloat(weather.Humidity, 'f', 1, 64))
 	sb.WriteString("%,")
 
-	sb.WriteString(events[3])
+	sb.WriteString(weatherEvents[3])
 	sb.WriteString(":")
 	sb.WriteString(strconv.FormatFloat(weather.WindSpeed, 'f', 1, 64))
 	sb.WriteString("m/s,")
 
-	sb.WriteString(events[4])
+	sb.WriteString(weatherEvents[4])
 	sb.WriteString(":")
 	sb.WriteString(strconv.FormatFloat(weather.Pressure, 'f', 1, 64))
 	sb.WriteString(",")
 
-	sb.WriteString(events[5])
+	sb.WriteString(weatherEvents[5])
 	sb.WriteString(":")
 	sb.WriteString(strconv.FormatFloat(weather.Visibility, 'f', 1, 64))
 	sb.WriteString("km")
+
 	return sb.String()
 }
 

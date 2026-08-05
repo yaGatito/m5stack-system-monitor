@@ -9,7 +9,7 @@ MQTT_BROKER = "192.168.31.169"
 MQTT_PORT = 1883
 MQTT_TOPIC = "data/pc"
 
-DELAY_UPDATE = 0.5
+INTERVAL_UPDATE = 0.5
 GB = 1024*1024*1024
 
 
@@ -32,5 +32,5 @@ if __name__ == '__main__':
                    'gpu:{0:3.0f}%,vram:{1:3.1f}G,temp_gpu:{2:3.0f}°,cpu:{3:3.0f}%,ram:{4:3.1f}G,temp_cpu:{5:3.0f}°'.format(
                       gpu.load*100, gpu.memoryUtil * (gpu.memoryTotal / 1024), temp_gpu.current, cpuLoad * 100, ram.used/GB, temp_cpu.current))
 
-    time.sleep(DELAY_UPDATE)
+    time.sleep(INTERVAL_UPDATE)
 
