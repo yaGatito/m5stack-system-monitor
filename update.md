@@ -1,10 +1,7 @@
 ### To update agents
 
-# ARM64
-`docker buildx build -f system-agent/Dockerfile.agent.arm64  --platform linux/arm64 -t yagatito/system-agent-arm64:1.0  --push ./system-agent`
-
-# AMD64
-`docker buildx build -f system-agent/Dockerfile.agent.amd64  --platform linux/amd64 -t yagatito/system-agent-amd64:1.0  --push ./system-agent`
+# ARM64 & AMD64
+`docker buildx build -f system-agent/Dockerfile.agent.arm64  --platform linux/arm64 -t yagatito/system-agent-arm64:1.0  --push ./system-agent && docker buildx build -f system-agent/Dockerfile.agent.amd64  --platform linux/amd64 -t yagatito/system-agent-amd64:1.0  --push ./system-agent`
 
 ### Use cases
 # orange pi 5 (broker + system agent)

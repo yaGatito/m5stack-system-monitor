@@ -176,14 +176,16 @@ func (a *Agent) Register(handler mqtt.MessageHandler) {
 
 func (a *Agent) Loop() {
 	var cpuSensorKey string
-	if a.Cfg.CpuSensorKey == "" {
+	if a.Cfg.CpuSensorKey != "" {
+		cpuSensorKey = a.Cfg.CpuSensorKey
+	} else {
 		switch a.Cfg.AgentType {
 		case DEVICE_AGENT_ORANGE_PI_5:
 			cpuSensorKey = ORANGE_PI_5_DEFAULT_SENSOR_KEY
 		case DEVICE_AGENT_DESKTOP:
 			cpuSensorKey = DESKTOP_DEFAULT_SENSOR_KEY
 		default:
-			panic("No agent handler for " + a.Cfg.AgentType)
+			panic("No pre-default cpu sensor key for " + a.Cfg.AgentType)
 		}
 	}
 
@@ -201,7 +203,10 @@ func (a *Agent) Loop() {
 					a.Publish(MQTT_DESKTOP_TOPIC, message)
 				}
 
-				time.Sleep(a.Cfg.SystemStatsUpdateInterval)
+				// As cpu.Percent(updateDelay, false) is called with interval
+				// It will do the same job as here below,
+				// So uncomment only if interval passed to get CPU stats is 0.
+				// time.Sleep(a.Cfg.SystemStatsUpdateInterval)
 			}
 		}()
 	}
@@ -233,7 +238,11 @@ func (a *Agent) Loop() {
 					message := modules.GetSystemOrangePi5Stats(a.logger, cpuSensorKey, a.Cfg.SystemStatsUpdateInterval)
 					a.Publish(MQTT_ORANGEPI5_TOPIC, message)
 				}
-				time.Sleep(a.Cfg.SystemStatsUpdateInterval)
+
+				// As cpu.Percent(updateDelay, false) is called with interval
+				// It will do the same job as here below,
+				// So uncomment only if interval passed to get CPU stats is 0.
+				// time.Sleep(a.Cfg.SystemStatsUpdateInterval)
 			}
 		}()
 	}
