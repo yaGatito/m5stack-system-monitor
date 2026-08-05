@@ -102,31 +102,34 @@ current_mode = 0
 previous_mode = 1
 
 MQTT_CLIENT_ID = b"m5stack-01"
-MQTT_STATUS_TOPIC = "m5stack/status"
+MQTT_M5STACK_STATUS_TOPIC = "m5stack/status"
+MQTT_AGENT_STATUS_TOPIC = "agent/status"
 
 def parse_kv(s: str) -> dict:
-    if isinstance(s, bytes):
-        s = s.decode('utf-8')
     return dict(pair.split(":", 1) for pair in s.split(","))
 
 def on_message(topic, msg):
     if isinstance(topic, bytes):
         topic = topic.decode('utf-8')
+    if isinstance(msg, bytes):
+        msg = msg.decode('utf-8')
 
     global cfg, cached_data, cached_titles
-    dict = parse_kv(msg)
-
-    for i in range(cfg.screens_number):
-        if cfg.screens[i].mqtt_topic == topic:
-            cached_titles[topic] = cfg.screens[i].widgets
-            data = []
-            for j in range(6):
-                data.append(dict[cfg.screens[i].events[j]])
-            # print("Cached data for topic:", topic, "->", data)
-            cached_data[topic] = data
-        
-        if current_mode < cfg.screens_number:
-            update(topic, dict, cfg.screens[current_mode].widgets, cfg.screens[current_mode].events)
+    if topic == MQTT_AGENT_STATUS_TOPIC:
+        print("Received agent/status. Healthy: ", msg)
+        on_next_frame_callbacks.append(lambda: mqtt.publish(MQTT_M5STACK_STATUS_TOPIC, "online"))
+    else:
+        dict = parse_kv(msg)
+        for i in range(cfg.screens_number):
+            if cfg.screens[i].mqtt_topic == topic:
+                cached_titles[topic] = cfg.screens[i].widgets
+                data = []
+                for j in range(6):
+                    data.append(dict[cfg.screens[i].events[j]])
+                cached_data[topic] = data
+            
+            if current_mode < cfg.screens_number:
+                update(topic, dict, cfg.screens[current_mode].widgets, cfg.screens[current_mode].events)
 
 
 def connect_mqtt():
@@ -136,12 +139,14 @@ def connect_mqtt():
     client = MQTTClient(MQTT_CLIENT_ID, cfg.mqtt_broker_host, port=cfg.mqtt_broker_port, keepalive=10)
     client.set_callback(on_message)
 
-    client.set_last_will(MQTT_STATUS_TOPIC, "offline", retain=True, qos=0)
+    client.set_last_will(MQTT_M5STACK_STATUS_TOPIC, "offline", retain=True, qos=0)
     client.connect()
 
     time.sleep(0.5)
-    client.publish(MQTT_STATUS_TOPIC, "online")
-    print("Sent 'online' connected to", MQTT_STATUS_TOPIC)
+    client.publish(MQTT_M5STACK_STATUS_TOPIC, "online")
+    print("Sent 'online' connected to", MQTT_M5STACK_STATUS_TOPIC)
+
+    client.subscribe(MQTT_AGENT_STATUS_TOPIC)
 
     for i in range(cfg.screens_number):
         client.subscribe(cfg.screens[i].mqtt_topic)
@@ -382,6 +387,7 @@ def update(topic:str, dict: dict, titles:list, events: list):
         value_labels[4].setText(dict[events[4]])
         value_labels[5].setText(dict[events[5]])
 
+on_next_frame_callbacks = [lambda: ()]
 
 def print_on_display(str: str):
     M5.Display.fillScreen(themes[theme_pointer][IDX_BACKGROUND_COLOR])
@@ -393,12 +399,9 @@ def highlight_nav_button(idx: int):
     if not highlighted:
         nav_buttons[idx].setColor(themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR], themes[theme_pointer][IDX_HIGHLIGHTED_NAV_BACKGROUND_COLOR])
         highlighted = True
-        global on_next_frame_cb
-        on_next_frame_cb = lambda: unhighlight_nav_button(idx)
+        on_next_frame_callbacks.append(lambda: unhighlight_nav_button(idx))
 
 highlighted = False
-
-on_next_frame_cb = lambda: ()
 
 def unhighlight_nav_button(idx: int):
     global highlighted
@@ -505,9 +508,14 @@ PING_DELAY = 9 #seconds
 update_time = 0
 
 def loop():
+    global on_next_frame_callbacks
+
     M5.update()
-    global on_next_frame_cb
-    on_next_frame_cb()
+
+    for callback in on_next_frame_callbacks:
+        callback()
+
+    on_next_frame_callbacks = []
 
     if BtnA.wasPressed():
         animate_nav(-1)

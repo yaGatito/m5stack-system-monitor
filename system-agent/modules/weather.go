@@ -3,35 +3,16 @@ package modules
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
+	"system-agent/util"
 	"time"
 )
 
 const EVENT_KEYS = "temp,cond,humi,wind,press,vis"
-
-var logger *Logger
-
-type Logger struct {
-	*log.Logger
-	logMutex sync.Mutex
-}
-
-func (l *Logger) Log(msg string) {
-	l.logMutex.Lock()
-	defer l.logMutex.Unlock()
-	l.Println(msg)
-}
-
-func (l *Logger) Logf(format string, args ...interface{}) {
-	l.logMutex.Lock()
-	defer l.logMutex.Unlock()
-	l.Printf(format, args...)
-}
 
 // Weather agent: fetches weather data and publishes to MQTT
 type WeatherData struct {
@@ -44,7 +25,7 @@ type WeatherData struct {
 	LastUpdated string
 }
 
-func GetWeather(log *Logger, lat, lon, token string) string {
+func GetWeather(log *util.Logger, lat, lon, token string) string {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 

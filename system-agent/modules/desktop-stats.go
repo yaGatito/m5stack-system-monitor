@@ -5,6 +5,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"system-agent/util"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -28,10 +29,9 @@ type DeviceType byte
 const (
 	ORANGE_PI5_DEVICE_TYPE DeviceType = 0
 	DESKTOP_DEVICE_TYPE    DeviceType = 1
-	DESKTOP_CPU_SENSOR_KEY            = "k10temp_tctl"
 )
 
-func GetSystemDesktopStats(log *Logger) string {
+func GetSystemDesktopStats(log *util.Logger, cpuSensor string) string {
 	cpu_perc, err := cpu.Percent(0, false)
 	if err != nil {
 		log.Logf("Unable to get temperature: %v", err)
@@ -48,7 +48,7 @@ func GetSystemDesktopStats(log *Logger) string {
 		log.Logf("Unable to get temperature: %v", err)
 	}
 	for _, sensor := range sensors {
-		if sensor.SensorKey == DESKTOP_CPU_SENSOR_KEY {
+		if sensor.SensorKey == cpuSensor {
 			cpuTempCelsius = sensor.Temperature
 		}
 	}
